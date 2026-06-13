@@ -493,7 +493,26 @@ npx bootproof explain .bootproof/attestation.json
 
 ```bash
 npx bootproof verify .bootproof/attestation.json
+npx bootproof verify . --require-known-signer
 ```
+
+Signature verification reports one of three local signer tiers:
+
+- `this machine`: the artifact was signed by `~/.bootproof/signer.json`;
+- `known`: the signer was explicitly pinned in `~/.bootproof/known_signers.json`;
+- `UNKNOWN`: the signature is intact, but it proves integrity only and the signer is not trusted.
+
+Unknown foreign signers are never pinned automatically. To deliberately trust an intact
+foreign signer, review the printed SHA-256 SPKI fingerprint and run:
+
+```bash
+npx bootproof verify proof.json --trust-signer
+```
+
+Use `--require-known-signer` for CI gating. When verification targets a repository directory,
+BootProof also compares the attested commit with the repository's current `HEAD`; `--strict`
+fails on either an unknown signer or a commit mismatch. A valid signature proves the artifact
+was not altered after signing. It does not, by itself, prove who produced it.
 
 ### Static infrastructure diff
 
@@ -848,7 +867,13 @@ Local attestations (the default) contain:
 }
 ```
 
-Local attestations are useful evidence. CI/OIDC attestations are stronger supply-chain proof. BootProof does not pretend local laptop proof is enterprise CI proof.
+The embedded trust value is an attested claim, not an external identity proof. Local
+verification separately classifies the signer as this machine, explicitly known, or unknown
+foreign. Repair receipts and registry entries use the same signer tiers.
+
+Local attestations are useful evidence. CI/OIDC attestations are stronger supply-chain proof.
+Cryptographic authorship binding through keyless/OIDC is intentionally deferred to the
+CI/Action work. BootProof does not pretend local laptop proof is enterprise CI proof.
 
 ### CI OIDC signing
 
