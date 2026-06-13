@@ -54,6 +54,7 @@ export type FailureClass =
   | "docker_unavailable"
   | "install_failed"
   | "app_exited_early"
+  | "health_preoccupied"
   | "health_check_timeout"
   | "health_http_error"
   | "health_candidate_port_mismatch"
