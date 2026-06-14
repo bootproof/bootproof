@@ -1489,11 +1489,15 @@ test("fix --ai is optional and fails gracefully without a BYOK provider key", ()
 test("fix --ai requires two uppercase approvals, reruns BootProof, and records ai_suggested", async () => {
   const repo = freshCopy("library-only");
   const commandMarker = path.join(repo, "ai-command-ran.txt");
+  const commandScript = path.join(repo, "ai-fixture-command.mjs");
   const fetchMarker = path.join(repo, "ai-request.json");
   const protectedEnv = path.join(repo, ".env");
+  fs.writeFileSync(
+    commandScript,
+    'import fs from "node:fs";\nfs.writeFileSync(process.argv[2], "ran");\n',
+  );
   const command = createRepairCommand(process.execPath, [
-    "-e",
-    'require("node:fs").writeFileSync(process.argv[1],"ran")',
+    path.basename(commandScript),
     path.basename(commandMarker),
   ]);
   const suggestion = {

@@ -178,6 +178,8 @@ Rules:
   unless a stricter deterministic classification applies.
 - the shared classifier assigns high risk to host installs, Kubernetes creation
   or application, database migrations, and credential generation.
+- deterministic and `ai_suggested` actions use the same inferred risk floor;
+  provider-reported risk may raise that floor but never lower it.
 - Exactly one of `command`, `patch`, or `instruction` is present.
 - The future signed plan adds playbook identity, preconditions, progression rules, and an
   action hash around this validated action payload.
@@ -224,15 +226,30 @@ Hard-blocked patterns include:
 - `curl | sh`
 - `wget | sh`
 - `chmod -R 777`
+- recursive world-writable chmod in equivalent octal or symbolic forms, including
+  `0777`, `a+w`, and `o+w`
 - `chown -R`
 - `mkfs`
 - `diskutil erase`
+- raw block-device writes such as `dd ... of=/dev/sda`, `/dev/nvme*`, or
+  `/dev/disk*`
+- inline interpreter snippets such as `node --eval`, `ruby -e`, `perl -E`,
+  `php -r`, and `python3 -c`
 - destructive database drops, including `dropdb`, `DROP DATABASE`, `DROP SCHEMA`,
   `rails db:drop`, migration reset commands, and equivalents
 - commands that write a protected `.env`
 - shell redirection into a protected `.env`
 - secret exfiltration patterns
 - upload of local secret files
+
+High-risk approval-required commands include:
+
+- destructive Git remote operations such as `git push --force`,
+  `--force-with-lease`, `--mirror`, or `--delete`
+- local `tar`, `zip`, or `rsync` operations whose arguments include a home
+  directory or sensitive tree such as `.ssh`, `.aws`, or `.gnupg`
+
+Network transfer of those sensitive trees remains blocked as exfiltration.
 
 Protected env paths include `.env`, `.env.local`, `.env.development`, `.env.production`, and
 `.env.*.local`. Example templates may be patched only when the playbook explicitly permits
