@@ -1,589 +1,886 @@
-# bootproof
+# BootProof
 
-> **The honest Run Button for repos — with proof, not vibes.**
+<p align="center">
+  <img src="assets/bootproof-demo.gif" alt="BootProof demo: no proof, no green check" width="900">
+</p>
 
-GitHub has a **Code** button.  
-GitHub has a **Star** button.  
-But software still does not have a trustworthy **Run** button.
 
-`bootproof` is the open-source local Run Button for repositories.
+[![CI](https://github.com/bootproof/bootproof/actions/workflows/ci.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/ci.yml)
 
-It takes a repo from cold start to observed boot, then writes a signed attestation proving what actually happened.
+> **The honest run button for GitHub repos. Proof, not vibes.**
 
-No fake green checks.  
-No guessed localhost URLs.  
-No invented secrets.  
-No silent `.env` mutation.  
-No “works on my machine” theatre.
+BootProof answers one question:
 
-If it boots, `bootproof` proves it.  
-If it fails, `bootproof` tells you why.
+> **Did this repository actually boot?**
+
+Not “did a command run?”  
+Not “did Docker say containers are up?”  
+Not “did an AI agent say it worked?”  
+Not “did the README look plausible?”
+
+BootProof inspects a repo, builds an evidence-based run plan, executes only what it can justify, observes real health, and writes a signed attestation for success or failure.
+
+```text
+No proof, no green check.
+```
+
+---
+
+## Why BootProof exists
+
+Every developer knows this loop:
+
+```bash
+git clone some/repo
+npm install
+npm run dev
+```
+
+Then reality appears.
+
+Wrong Node version. Wrong pnpm version. Missing Java. Missing Clojure. Docker is running but the service is not healthy. Postgres exists but the role does not. Redis is missing. A migration fails. The app starts but nothing responds. A container is “up” but the product is unusable. An AI agent confidently says “done” because a process started.
+
+That is not proof.
+
+BootProof exists because repo onboarding should not depend on hope, terminal archaeology, or fake green checks.
 
 ---
 
 ## The problem
 
-Open-source has a trust problem.
+Modern repositories are no longer simple.
 
-AI has made it easy to generate entire repositories that look complete.  
-READMEs can be polished.  
-Demos can be convincing.  
-CI badges can be shallow.  
-Install instructions can rot.  
-Generated apps can look finished but fail on first boot.
+A repo might contain:
 
-Every developer still discovers the truth the slow way:
+- multiple workspaces
+- Docker Compose services
+- frontend and backend apps
+- hidden runtime requirements
+- package-manager version constraints
+- generated assets
+- database migrations
+- health endpoints
+- undocumented local assumptions
 
-```bash
-git clone ...
-npm install
-npm run dev
-```
+A README can be useful, but it is not proof.
 
-Then the real debugging begins.
+A terminal command can be useful, but it is not proof.
 
-Wrong package manager.  
-Missing environment variables.  
-Broken scripts.  
-Port conflicts.  
-Database auth failures.  
-Stale docs.  
-Monorepo ambiguity.  
-A README that says “just run it” when it does not run.
+A model response can be useful, but it is not proof.
 
-`bootproof` exists for one simple question:
-
-> **Can this repository actually boot from a clean start?**
-
-Not theoretically.  
-Not according to the README.  
-Not according to an agent summary.  
-Actually.
+BootProof turns repo booting into an evidence trail.
 
 ---
 
-## The idea
+## The core idea
 
-Runnability should be a verifiable property of a repository.
+BootProof separates **activity** from **evidence**.
 
-A repo should be able to carry proof that it booted.
+| Weak signal | What BootProof wants instead |
+|---|---|
+| command exited | observed health |
+| process started | reachable endpoint |
+| container running | service actually responds |
+| README says it works | repo evidence + runtime proof |
+| AI says it is done | signed attestation |
+| one workspace responded | selected app/workspace proof |
 
-Not a promise.  
-Not a screenshot.  
-Not a decorative badge.  
-Not a maintainer claim.
-
-A signed, local, per-run execution receipt.
-
-```bash
-bootproof up ./some-repo
-```
-
-Or, for the canonical cold-clone scenario:
-
-```bash
-npx bootproof https://github.com/user/repo
-```
-
-`bootproof` inspects the repo, builds a safe run plan, starts only what it can honestly start, observes a real health signal, classifies failures, and writes a signed attestation.
-
-The Run Button is the product.
-
-The proof is the moat.
-
-The registry is how it compounds.
-
----
-
-## What success looks like
+A failed run is still useful if it tells the truth.
 
 ```text
-BootProof
+✗ NOT VERIFIED — package_manager_version_mismatch
 
-Repo: github.com/user/repo
-Mode: cold clone
+What happened:
+The repository requires pnpm 10.24.0, but this environment has pnpm 9.15.4.
 
-Install       ✓ npm ci completed
-Env           ✓ .env.bootproof.example written (your .env untouched)
-Run           ✓ npm run dev started
-Observe       ✓ http://127.0.0.1:3000 returned 200
-Proof         ✓ signed attestation written
+Why BootProof refused:
+The dependency install cannot be trusted with the wrong package manager version.
 
-Verdict: BOOTS
-First-run time: 48s
+Safe next step:
+Run corepack enable && corepack prepare pnpm@10.24.0 --activate, then rerun BootProof.
+
+Evidence:
+.bootproof/attestation.json
 ```
 
-If the repo does not boot, `bootproof` does not pretend.
-
-```text
-BootProof
-
-Repo: github.com/user/repo
-Mode: cold clone
-
-Install       ✓ npm ci completed
-Env           ✓ .env.bootproof.example written (your .env untouched)
-Run           ✗ npm run dev failed
-Class         missing_env
-Evidence      DATABASE_URL is required but no safe value was available
-
-Verdict: DOES NOT BOOT
-First-run time: 31s
-```
-
-A failed run is still useful.
-
-It tells the truth.
-
----
-
-## The honesty contract
-
-`bootproof` is built around a hard honesty contract.
-
-- Real `.env` files are **never** written.
-- Secrets are **never** invented.
-- Unknown commands are **rejected**, not guessed.
-- Monorepo ambiguity is **surfaced**, not hidden.
-- Skipped steps are **never** rendered as success.
-- Library packages are not mislabelled as applications.
-- Dry runs say what they *would* do; they do not claim proof.
-- Positive boot claims require observed evidence.
-- No telemetry.
-- No hidden upload.
-- No background network writes.
-- No silent patching of your project.
-
-When environment scaffolding is needed, `bootproof` writes a namespaced file:
-
-```text
-.env.bootproof.example
-```
-
-It does not write:
-
-```text
-.env
-```
-
-That rule is contract-level, test-enforced behaviour.
+Predictable failure is a feature.
 
 ---
 
 ## Quick start
 
-For local development:
+Run BootProof against a local repo:
 
 ```bash
-npm ci
-npm run build
-npm link
+cd /path/to/repository
+npx bootproof up .
 ```
 
-Run against a local repo:
+BootProof will inspect the repo and either prove it booted or explain why it refused.
+
+For CI or agent workflows:
 
 ```bash
-bootproof up ./path-to-repo
+npx bootproof up . --ci --json
 ```
 
-Run against a remote repo:
+For explicit local execution:
 
 ```bash
-npx bootproof https://github.com/user/repo
+npx bootproof up . --provider local --unsafe-local
 ```
 
-Explain an attestation:
+Run dependency installation only when you intend to:
 
 ```bash
-bootproof explain .bootproof/attestation.json
+npx bootproof up . --provider local --unsafe-local --install
 ```
 
-Verify an attestation:
+Explain or verify an attestation:
 
 ```bash
-bootproof verify .bootproof/attestation.json
+npx bootproof explain .bootproof/attestation.json
+npx bootproof verify .bootproof/attestation.json
 ```
 
 ---
 
-## What `bootproof` writes
+## Try it on a public Git repo
 
-`bootproof` writes namespaced artefacts only.
+BootProof can inspect public HTTPS repositories from GitHub, GitLab, Bitbucket, and Codeberg.
+
+```bash
+npx bootproof up https://github.com/dubinc/dub
+```
+
+Remote repositories are untrusted code, so BootProof inspects first and refuses execution until you explicitly opt in.
 
 ```text
-.bootproof/
-  attestation.json
-  public-key.json
-  run.log
+Remote source: https://github.com/dubinc/dub.git
+Clone retained at: .bootproof/remotes/github.com/dubinc/dub-*/repo
 
-.env.bootproof.example
+Inference
+  application: yes
+  package manager: pnpm
+  selected command: pnpm dev
+
+✗ NOT VERIFIED — remote_code_execution_blocked
+
+Why BootProof refused:
+Remote repositories are untrusted code and require explicit consent.
 ```
 
-It does not overwrite your app configuration.
+To run remote code locally, you must say so explicitly:
 
-It does not mutate your real `.env`.
+```bash
+npx bootproof up https://github.com/dubinc/dub --provider local --unsafe-local --install
+```
 
-It does not hide uncertainty by patching the repo until something appears to work.
-
-If the run cannot be performed safely, `bootproof` refuses and explains why.
+BootProof never silently executes remote code.
 
 ---
 
-## Attestations
+## What a successful run looks like
 
-A `bootproof` attestation is a signed execution receipt.
+```text
+✓ install: dependencies installed
+✓ start-app: app process started and was supervised
+✓ health: observed HTTP 200 at http://localhost:3333
 
-It records:
+✓ BOOTED — HTTP 200 at http://localhost:3333
 
-- the repository tested
-- the commit or local state
-- the detected stack
-- the install command
-- the run command
-- the observed health signal
-- the verdict
-- the failure class, if any
-- the first-run time
-- the tool version
-- the signature
+Evidence:
+.bootproof/attestation.json
+```
+
+A repository is only marked `BOOTED` when BootProof observes health evidence.
+
+A process start is not enough.  
+A successful install is not enough.  
+A Docker container is not enough.  
+A command exiting is not enough.
+
+---
+
+## What BootProof gives humans
+
+Humans get a readable diagnosis:
+
+```text
+NOT VERIFIED — workspace_ambiguous
+
+BootProof detected a root command that starts multiple workspaces in parallel.
+Choose a specific application with --workspace <dir>; one responding workspace
+is not proof that the whole repository booted.
+```
 
 Example:
 
+```bash
+npx bootproof up . --workspace apps/studio
+```
+
+BootProof is designed to make failures legible.
+
+It should tell you whether the problem is:
+
+- package-manager mismatch
+- skipped install
+- missing runtime
+- ambiguous workspace
+- unsupported orchestration
+- allocated port
+- failed service
+- failed app start
+- unhealthy endpoint
+- health timeout
+
+---
+
+## What BootProof gives machines
+
+`--json` emits exactly one `bootproof/result/v1` object:
+
 ```json
 {
-  "tool": "bootproof",
-  "version": "0.1.0-alpha",
-  "repo": "github.com/user/repo",
-  "commit": "abc123",
-  "mode": "cold_clone",
-  "verdict": "boots",
-  "observed": {
-    "health_url": "http://127.0.0.1:3000",
-    "status": 200
-  },
-  "timing": {
-    "first_run_seconds": 48
-  },
-  "signature": {
-    "algorithm": "ed25519"
-  }
+  "schema": "bootproof/result/v1",
+  "booted": false,
+  "healthVerified": false,
+  "failureClass": "dependency_install_skipped",
+  "attestationPath": ".bootproof/attestation.json",
+  "inference": {},
+  "plan": {},
+  "observed": []
 }
 ```
 
-If the file is tampered with, verification fails.
+`--ci` disables colour and interactive prompts.
 
-That is the point.
+Exit codes are deterministic:
 
----
+| Exit code | Meaning |
+|---:|---|
+| `0` | `booted === true` and `healthVerified === true` |
+| `1` | refusal, ambiguity, install failure, app failure, service failure, or health failure |
 
-## Why this is different from CI
-
-CI normally answers:
-
-> Did the maintainer’s workflow pass?
-
-`bootproof` answers:
-
-> Can a stranger boot this repository from a clean start?
-
-Those are different questions.
-
-CI can pass while the README is wrong.  
-CI can pass while the first-run path is broken.  
-CI can pass while the demo cannot start.  
-CI can pass while the repo is hostile to new contributors.
-
-`bootproof` is focused on the first adoption truth:
-
-> **Can I run it?**
+That makes BootProof useful for CI, agent workflows, and repo-quality gates.
 
 ---
 
-## Why this matters for AI agents
+## Real repo evidence
 
-AI coding agents need an execution oracle.
+BootProof has been tested against real repositories, including small apps, monorepos, large platforms, and multi-service stacks.
 
-They can edit files.  
-They can generate apps.  
-They can open pull requests.  
-They can claim success.
+The point is not to turn every repo green. The point is to produce the correct verdict.
 
-But without execution proof, they are guessing.
+| Repository | Result | What it proved |
+|---|---|---|
+| `dubinc/dub` | `NOT VERIFIED — remote_code_execution_blocked` | BootProof inspected the repo but refused to execute remote code without explicit consent. |
+| `makeplane/plane` | useful monorepo path | BootProof handled a more complex workspace-style repo and produced actionable evidence. |
+| `airbytehq/airbyte` | refused direct orchestration, then externally verified | Airbyte required `abctl`, Kind, Helm and a documented local path. BootProof refused to pretend a normal command was enough, then verified the external health endpoint. |
+| `gitlabhq/gitlabhq` | manual boot loop exposed hidden environment assumptions | GitLab showed why large repos need evidence trails rather than README optimism. |
+| `metabase/metabase` | backend health reached, frontend missing | Metabase showed the difference between “backend is alive” and “full UI booted”. |
+| `supabase/supabase` | `workspace_ambiguous`; manual Compose platform boot | BootProof correctly refused a fake monorepo-wide green check. The official Docker Compose path booted core services, proving the need for explicit full-platform compose mode. |
 
-`bootproof` gives agents a simple rule:
+Failure is not hidden or relabelled as support.
+
+Evidence stays evidence.
+
+See [docs/REAL_REPO_EVIDENCE.md](docs/REAL_REPO_EVIDENCE.md).
+
+---
+
+## Supabase example: why honest failure matters
+
+A fresh BootProof run against `supabase/supabase` detected:
 
 ```text
-No proof, no green check.
+stack: make-driven, node-frontend, docker-compose
+repo compose: docker/docker-compose.yml
+workspaces: apps/studio, apps/www, apps/docs, packages/*
+selected command: make dev
 ```
 
-An agent can run:
+BootProof refused:
+
+```text
+✗ NOT VERIFIED — workspace_ambiguous
+
+The root command starts multiple workspaces in parallel.
+One responding workspace would not prove that the whole repository booted.
+```
+
+That refusal is correct.
+
+Manual follow-up through Supabase’s official Docker route proved the platform path:
+
+```bash
+cd docker
+cp .env.example .env
+docker compose up -d
+```
+
+Core services such as Kong, Studio, DB, Auth, REST and Pooler reported healthy/running, and `localhost:8000` returned Kong/API responses.
+
+The lesson:
+
+> BootProof should not fake a monorepo-wide success just because one endpoint responds.
+
+---
+
+## Airbyte example: external verification
+
+Airbyte correctly exceeded BootProof’s direct orchestration boundary.
+
+BootProof refused instead of pretending a normal Gradle, Make, or Compose command was enough. The documented local path required `abctl`, Kind and Helm. A human followed that runbook and booted the application.
+
+BootProof could then verify the external health endpoint without claiming it started Airbyte.
+
+```bash
+bootproof verify-url http://localhost:8001/api/v1/health
+```
+
+External verification means:
+
+```text
+This endpoint responded.
+BootProof did not orchestrate the startup.
+```
+
+That distinction matters.
+
+---
+
+## Main commands
+
+### Boot a repo
+
+```bash
+npx bootproof up .
+```
+
+### Boot a selected workspace
+
+```bash
+npx bootproof up . --workspace apps/studio
+```
+
+### Run in CI/machine mode
+
+```bash
+npx bootproof up . --ci --json
+```
+
+### Explicit local host execution
+
+```bash
+npx bootproof up . --provider local --unsafe-local
+```
+
+### Allow dependency installation
+
+```bash
+npx bootproof up . --provider local --unsafe-local --install
+```
+
+### Verify an existing service
+
+```bash
+npx bootproof verify-url http://localhost:8001/api/v1/health
+```
+
+### Attach external health to the current repo
+
+```bash
+npx bootproof up . --external-health http://localhost:8001/api/v1/health
+```
+
+### Explain an attestation
+
+```bash
+npx bootproof explain .bootproof/attestation.json
+```
+
+### Verify an attestation
+
+```bash
+npx bootproof verify .bootproof/attestation.json
+```
+
+### Static infrastructure diff
+
+```bash
+npx bootproof diff --base main --head HEAD
+npx bootproof diff --base main --head HEAD --json
+```
+
+### Deterministic repair
+
+```bash
+npx bootproof fix .
+```
+
+### Optional BYOK AI repair suggestion
+
+```bash
+OPENAI_API_KEY=... npx bootproof fix . --ai
+```
+
+or:
+
+```bash
+ANTHROPIC_API_KEY=... BOOTPROOF_AI_PROVIDER=anthropic npx bootproof fix . --ai
+```
+
+`bootproof up` remains zero-AI.
+
+---
+
+## The agent-in-the-loop model
+
+BootProof is built for a world where humans and AI agents both touch repositories.
+
+The intended loop is:
+
+```text
+Diagnose
+→ Classify
+→ Plan
+→ Risk-classify
+→ Approve
+→ Execute one step
+→ Verify
+→ Receipt
+→ Repeat
+```
+
+AI can suggest.  
+Humans can approve.  
+BootProof proves.
+
+The complete autonomous loop is not implemented. Today BootProof exposes four honest modes.
+
+### 1. Direct orchestration
 
 ```bash
 bootproof up .
 ```
 
-Then attach the signed attestation to a PR.
+BootProof infers a supported local run path, executes it within the selected safety boundary, observes health, and writes an attestation.
 
-The maintainer no longer has to trust the agent’s summary.  
-They can inspect the proof.
+Unsupported or ambiguous orchestration is refused.
 
-This makes `bootproof` useful for:
+### 2. External verification
 
-- autonomous coding agents
-- generated application scaffolds
-- repo repair agents
-- pull request validation
-- open-source maintainers
-- enterprise code intake
-- vendor due diligence
-- supply-chain review
-
-In the AI era, code is abundant.
-
-Proof is scarce.
-
----
-
-## The registry model
-
-The long-term value of `bootproof` is not one signed file.
-
-Signed receipts are useful.  
-A federated proof registry is what makes them compound.
-
-The registry is intentionally Git-native.
-
-A repository can carry its own runnability history:
-
-```text
-repo
-└── .bootproof
-    └── attestation.json
+```bash
+bootproof verify-url http://localhost:8001/api/v1/health
 ```
 
-A CI Action can refresh that proof on every push.
+BootProof observes a service started outside BootProof. Successful evidence is classified as externally verified and never claims BootProof started the app.
 
-A verified index can aggregate attestations across thousands of repositories.
+### 3. Agent planning
 
-A failure corpus can compound into better detectors, clearer fixes, and sharper run plans.
+```bash
+bootproof plan-agent .
+```
 
-This creates a public, portable record of what actually boots.
+BootProof writes a deterministic, risk-classified plan and a redacted local receipt chain. It does not execute candidate actions, and planning never counts as success.
 
-No central SaaS is required for the primitive to work.
+### 4. Deterministic repair
 
-The repo is the write path.
+```bash
+bootproof fix .
+```
 
-Git is the distribution layer.
+BootProof maps exact known failures to deterministic repair actions. Mutating commands and patches require explicit approval. Verification decides whether the failure progressed or the application booted.
 
-The ecosystem becomes the database.
+See:
+
+- [docs/AGENT_IN_THE_LOOP.md](docs/AGENT_IN_THE_LOOP.md)
+- [docs/AGENT_RUN_RECEIPTS.md](docs/AGENT_RUN_RECEIPTS.md)
+- [docs/DETERMINISTIC_REPAIR_SAFETY_MODEL.md](docs/DETERMINISTIC_REPAIR_SAFETY_MODEL.md)
 
 ---
 
-## Badges, but only as proof pointers
+## Deterministic repair
 
-`bootproof` should never create decorative trust badges.
+`bootproof fix` reads the latest signature-valid classified failure and maps exact known failures to deterministic actions.
 
-A badge is only acceptable if it is a dumb pointer to a live, verifiable attestation.
+```bash
+bootproof fix .
+```
 
-That means:
+Host and service commands show the exact command, scope and risk. They run only when the user gives explicit approval. JSON and CI modes never approve commands.
 
-- green only when the committed proof verifies for the current commit
-- grey when the proof is stale
-- red when verification fails
-- always linked to the underlying attestation
-- never used as a standalone claim
+Repair receipts distinguish:
 
-A badge is not the proof.
+- declined
+- failed
+- progressed
+- verified
 
-The attestation is the proof.
+Machine mode:
+
+```bash
+bootproof fix . --json
+```
+
+It emits one `bootproof/repair-result/v1` object and exits `0` only when a verified receipt exists.
+
+`fix` never applies file patches directly. To explicitly apply a signature-valid file repair to a local working tree:
+
+```bash
+bootproof apply-repair .
+```
+
+Application checks the receipt signature, allowed file scope, signed content hashes, and exact current preimages before writing.
+
+See [docs/REPAIR_RECEIPT.md](docs/REPAIR_RECEIPT.md).
+
+---
+
+## Optional BYOK AI
+
+AI suggestions are optional and are only available after no deterministic repair is known.
+
+```bash
+OPENAI_API_KEY=... bootproof fix . --ai
+```
+
+or:
+
+```bash
+ANTHROPIC_API_KEY=... BOOTPROOF_AI_PROVIDER=anthropic bootproof fix . --ai
+```
+
+BootProof asks before contacting the provider, sends only redacted structured failure evidence, validates the strict `bootproof/ai-repair-suggestion/v1` response through the shared safety model, and asks again before any command or patch is tested.
+
+AI suggestions are recorded as `ai_suggested`.
+
+They never enter the deterministic registry automatically.
+
+---
+
+## Static infrastructure diff
+
+```bash
+bootproof diff --base main --head feature-branch
+bootproof diff --base main --head HEAD --json
+```
+
+`diff` reads committed Git objects and performs static analysis only.
+
+It does not:
+
+- check out either ref
+- execute repository code
+- install dependencies
+- read protected `.env` contents
+- upload data
+
+It reports supported drift in:
+
+- dependency manifests and lockfiles
+- Compose services and ports
+- environment variable names
+- start commands
+- package managers
+- runtime markers
+- detectable health routes
+
+A diff can require fresh proof, but it never claims the head revision boots. Run `bootproof up` against the intended revision to establish that with observed health evidence.
+
+---
+
+## Honesty contract
+
+BootProof is constrained on purpose.
+
+It will not:
+
+- mark a repo `BOOTED` without observed health
+- execute remote code without explicit consent
+- fall back from Docker to host execution silently
+- render skipped steps as success
+- invent secrets
+- write protected `.env` files
+- silently patch project code
+- guess a workspace when the repo is ambiguous
+- claim generated scaffolding exists unless it was written
+- upload telemetry or hidden evidence
+
+It will:
+
+- sign successful attestations
+- sign failed attestations
+- preserve local evidence
+- classify known failures
+- refuse unsupported paths clearly
+
+See [docs/HONESTY_CONTRACT.md](docs/HONESTY_CONTRACT.md).
+
+---
+
+## Safety model
+
+BootProof treats repair actions as executable risk.
+
+The repair safety model blocks or escalates dangerous commands before they run.
+
+Blocked examples include:
+
+- `sudo`
+- shell interpreters
+- pipe-to-shell downloads such as `curl | sh`
+- inline arbitrary execution such as `node -e`, `python -c`, `ruby -e`
+- recursive world-writable chmod
+- raw disk writes
+- destructive database drops
+- protected `.env` writes
+- secret exfiltration patterns
+
+High-risk actions require explicit approval and can never be downgraded by AI-provided risk labels.
+
+See [docs/DETERMINISTIC_REPAIR_SAFETY_MODEL.md](docs/DETERMINISTIC_REPAIR_SAFETY_MODEL.md).
+
+---
+
+## Current capabilities
+
+BootProof currently provides:
+
+- Node package-manager and start-command inference
+- monorepo candidate ranking
+- Docker service dependency detection
+- repository Compose detection
+- conservative Go main-package execution
+- Rails `bin/rails` entrypoint detection
+- explicit Make run-target execution
+- Python/Flask and Go/Node hybrid detection
+- localhost health-candidate discovery from repo evidence and app logs
+- classified failures
+- signed Ed25519 attestations
+- strict JSON and fail-closed CI output
+- redacted registry-entry export
+- deterministic sandboxed repairs for registered failure classes
+- explicit repair application with signature, scope and stale-preimage checks
+- static infrastructure diff
+
+Detection is broader than orchestration. BootProof may detect a stack and still refuse to run it if the proof boundary is not safe or clear.
+
+---
+
+## Supported entrypoints
+
+Supported execution paths are deliberately narrow.
+
+| Type | Supported path |
+|---|---|
+| Node | package manager + selected start/dev script |
+| Go | exactly one `main.go` or `cmd/*/main.go` |
+| Ruby/Rails | `Gemfile` plus `bin/rails` |
+| Make | explicit `run`, `serve`, `server`, `start`, or `dev` target |
+| Compose | repository-local build context with published HTTP port |
+
+Each path still requires observed health.
+
+A successful `docker compose up -d`, process spawn, or command exit is not a green result by itself.
 
 ---
 
 ## Failure taxonomy
 
-`bootproof` does not just say “failed”.
-
-It classifies failure.
-
-Examples include:
+Common failure classes include:
 
 - `not_an_application`
-- `unknown_command`
-- `missing_env`
-- `install_failed`
-- `run_failed`
-- `healthcheck_failed`
-- `port_unavailable`
-- `monorepo_ambiguous`
-- `postgres_auth_failed`
-- `docker_unavailable`
-- `timeout`
-- `unsafe_local_required`
+- `workspace_ambiguous`
+- `dependency_install_skipped`
+- `package_manager_version_mismatch`
+- `python_flask_setup_required`
+- `service_port_allocated`
+- `postgres_auth_env_missing`
+- `health_http_error`
+- `health_check_timeout`
+- `remote_code_execution_blocked`
+- `unknown_failure`
 
-Instead of:
+Unknown failures remain unknown, with evidence preserved for the next detector.
 
-```text
-Something went wrong.
-```
-
-You get:
-
-```text
-Failure class: postgres_auth_failed
-Evidence: password authentication failed for user "postgres"
-Suggested next step: check DATABASE_URL or local Postgres credentials
-```
-
-This is how failed runs become useful data.
+See [docs/FAILURE_TAXONOMY.md](docs/FAILURE_TAXONOMY.md).
 
 ---
 
-## Security model
+## Files BootProof may write
 
-`bootproof` uses Ed25519 signatures for attestations.
-
-A signed attestation proves what `bootproof` observed during a specific run.
-
-Current trust model:
+Depending on the command and observed plan, BootProof may write:
 
 ```text
-local signing / trust on first use
+.bootproof/attestation.json
+.bootproof/registry-entry.json
+.bootproof/registry/<timestamp>-<hash>.json
+.bootproof/runtime/
+docker-compose.bootproof.yml
+.env.bootproof.example
 ```
 
-That is useful, but not final.
+Registry artifacts are written only by explicit export commands.
 
-The roadmap includes GitHub Actions and OIDC-backed signing so a verifier can distinguish:
-
-```text
-signed by a developer laptop
-```
-
-from:
-
-```text
-signed by a clean CI runner for this repository
-```
-
-That matters.
-
-A local attestation is a receipt.
-
-A CI-backed attestation becomes a stronger supply-chain artefact.
+Protected application env files remain untouched.
 
 ---
 
-## Why not just let GitHub build this?
+## Attestation trust
 
-GitHub could ship a Run Button.
+Current local attestations contain:
 
-That is the obvious platform risk.
+```json
+{
+  "trust": {
+    "level": "local_developer_signed",
+    "signer": "local_ed25519",
+    "oidc": null
+  }
+}
+```
 
-`bootproof` is designed around three defenses:
+Local attestations are useful evidence. CI/OIDC attestations are stronger supply-chain proof. BootProof does not pretend local laptop proof is enterprise CI proof.
 
-1. **Neutrality**  
-   `bootproof` can work across GitHub, GitLab, Bitbucket, local repos, private repos, enterprise hosts, and air-gapped environments.
-
-2. **Open attestation format**  
-   Proof should live with the repo, not inside one platform’s UI.
-
-3. **Corpus head-start**  
-   Every run, failure class, CI refresh, and committed proof improves the registry and the detectors.
-
-This is not an invincible moat.
-
-It is a practical one.
-
-The goal is to make `bootproof` the open standard for proving that software boots.
+The future `ci_oidc_signed` level is reserved but is not emitted today.
 
 ---
 
-## What `bootproof` is not
+## CI and registry
 
-`bootproof` is not a deployment platform.
+BootProof does not upload attestations.
 
-It is not a general CI replacement.
+A project can deliberately export a redacted local registry entry or federated public-candidate receipt and review it before committing it.
 
-It is not a cloud runner.
+```bash
+bootproof registry export .
+bootproof attest export .
+bootproof registry export . --federated
+```
 
-It is not an AI agent.
+Public crawler, private cloud upload, and OIDC-backed trust are future integrations, not deployed services in this repository.
 
-It is not a magic environment fixer.
+See:
 
-It is not a tool that mutates your project until it appears to work.
-
-It is a proof layer for the most basic software claim:
-
-> **This repository boots.**
+- [docs/CI_ACTION.md](docs/CI_ACTION.md)
+- [docs/REGISTRY.md](docs/REGISTRY.md)
 
 ---
 
-## Current status
+## Open-source boundary
 
-`bootproof` is early alpha.
+This repository contains the local trust layer:
 
-Current focus:
+- local diagnosis
+- local planning
+- local receipts
+- local approvals
+- optional BYOK AI suggestions
+- deterministic repair safety
+- no telemetry
+- no automatic upload
 
-- Node.js app detection
-- safe local execution
-- healthcheck observation
-- signed attestations
-- verification
-- explanation
-- redaction
-- failure classification
-- registry export
-- Windows / WSL2 path handling
-- zero runtime dependencies
+The OSS engine works offline and does not require BootProof Cloud.
 
-Near-term roadmap:
+---
 
-- cold-clone URL support
-- fully containerised app execution
-- Python support
-- Go support
-- GitHub Action integration
-- GitHub OIDC-backed attestations
-- multi-service health checks
+## Cloud boundary
+
+BootProof Cloud belongs in a separate private repository.
+
+Its boundary includes future hosted capabilities such as:
+
+- hosted AI
+- shared registry
+- team approval workflows
+- GitHub App
+- SSO/RBAC
+- policy
+- fleet dashboards
+- audit retention
+
+These are product boundaries, not claims that those services are implemented in this public repository.
+
+No Cloud/SaaS code is included here.
+
+---
+
+## Release packaging
+
+The npm package contains the compiled CLI, license, README and docs.
+
+`dist/` is required at runtime, generated by `npm run build` during `prepack`, and intentionally not committed.
+
+Run:
+
+```bash
+npm run pack:check
+```
+
+This packs BootProof, installs the tarball in an isolated temporary directory, and exercises the installed CLI.
+
+See [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+
+---
+
+## Development
+
+For contributors working from source:
+
+```bash
+git clone https://github.com/bootproof/bootproof.git
+cd bootproof
+npm ci
+npm run build
+npm test
+npm link
+```
+
+Then from another repository:
+
+```bash
+bootproof up .
+```
+
+Generated files such as `dist/`, `node_modules/`, and `.DS_Store` are ignored and not committed.
+
+---
+
+## What BootProof is not
+
+BootProof is not:
+
+- a deployment platform
+- a general CI replacement
+- a magic environment fixer
+- an AI coding agent
+- a guarantee that every repo can be run automatically
+- a cloud product hidden inside an OSS repo
+
+BootProof is the honest run button for repos.
+
+It runs what it can, refuses what it cannot prove, signs both success and failure, and gives humans and machines the same evidence.
+
+---
+
+## Status
+
+BootProof is early alpha.
+
+Near-term work includes:
+
+- explicit full-platform Compose mode
+- stronger multi-service health modelling
+- broader deterministic remediation coverage
+- more Python, Go, Ruby and Make entrypoints
+- CI/OIDC-backed signing
 - proof-linked badges
-- public verified index
+- verified public evidence index
 
-Unsupported stacks should fail clearly, not magically.
-
----
-
-## Philosophy
-
-When code was scarce, writing code was the hard part.
-
-When AI makes code abundant, proving code works becomes the hard part.
-
-The future will have more generated repos, more automated PRs, more synthetic demos, and more confident claims than any developer can manually verify.
-
-`bootproof` is a small primitive for that world.
-
-A local Run Button.
-
-A refusal to fake success.
-
-A signed receipt when something actually works.
-
-A growing registry of what really boots.
-
----
-
-## One-line version
-
-```text
-bootproof is the honest Run Button for repos: it runs a project from cold start and writes cryptographic proof of whether it actually booted.
-```
-
----
-
-## The rule
-
-```text
-No proof, no green check.
-```
+Unsupported paths should fail clearly, not magically.
 
 ---
 
