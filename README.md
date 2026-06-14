@@ -1,8 +1,31 @@
 # BootProof
 
+## See BootProof in action
+
+### 1. The “wow” moment: a serious stack, verified locally
+
+BootProof is designed for the moment every developer knows: you find a serious open-source repo, clone it, and then spend the afternoon guessing how to make it run.
+
+This demo shows BootProof treating a Supabase-style stack as something that must be **proved**, not assumed. It infers the stack, identifies the boot path, starts the services, verifies localhost health, and writes a signed attestation.
+
 <p align="center">
-  <img src="assets/bootproof-demo.gif" alt="BootProof demo: no proof, no green check" width="900">
+  <img src="assets/bootproof-supabase-demo.gif" alt="BootProof demo verifying a Supabase-style stack" width="900">
 </p>
+
+**What this proves:** BootProof does not just print a happy message. It only gives the green check after observed health evidence exists.
+
+---
+
+### 2. The agent moment: AI can suggest, BootProof proves
+
+AI coding agents can suggest commands, but they should not be trusted to declare success. This demo shows the BootProof agent loop on a GitLab-style repo: AI suggests a repair, BootProof requires approval, runs one bounded step, reruns verification, and writes a receipt showing what changed.
+
+<p align="center">
+  <img src="assets/bootproof-gitlab-agent-demo.gif" alt="BootProof demo showing AI repair suggestions gated by proof" width="900">
+</p>
+
+**What this proves:** AI can help move the repo forward, but BootProof refuses to fake a green check. No proof, no green check.
+
 
 
 [![CI](https://github.com/bootproof/bootproof/actions/workflows/ci.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/ci.yml)
