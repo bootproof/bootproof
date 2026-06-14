@@ -198,6 +198,7 @@ const SHELL_CONTROL = /(?:[;&|<>`]|[$]\(|[\r\n])/;
 const SHELL_EXECUTABLE = /^(?:ba|z|k|c|fi)?sh$|^(?:cmd|powershell|pwsh)(?:\.exe)?$/i;
 const NETWORK_EXECUTABLE = /^(?:curl|wget|nc|ncat|netcat|scp|sftp|ftp|rsync)$/i;
 const MUTATING_EXECUTABLE = /^(?:cp|mv|install|touch|truncate|tee|sed|perl|ruby|python(?:3)?|node)$/i;
+const ARCHIVE_EXECUTABLE = /^(?:tar|zip|rsync)$/i;
 const SENSITIVE_PATH = /(?:^|\/)(?:\.ssh|\.aws|\.gnupg)(?:\/|$)|(?:^|\/)(?:id_rsa|id_ed25519|credentials)(?:$|\/)|private[_-]?key/i;
 const ATTESTATION_PATH = /(?:^|\/)(?:\.bootproof\/)?attestation(?:\.[A-Za-z0-9_-]+)?\.json$/i;
 const RISK_WEIGHT: Record<RepairRiskLevel, number> = {
@@ -281,6 +282,71 @@ function commandText(command: RepairCommand): string {
   return [command.executable, ...command.args, command.display].join(" ");
 }
 
+function isInlineCodeExecution(executable: string, args: string[]): boolean {
+  if (["node", "nodejs", "deno", "bun"].includes(executable)) {
+    return args.some(arg => arg === "-e" || arg.startsWith("-e=") || arg === "--eval" || arg.startsWith("--eval=")) ||
+      (executable === "deno" && args[0] === "eval");
+  }
+  if (["ruby", "perl"].includes(executable)) {
+    return args.some(arg => /^-[eE](?:$|[^-])/.test(arg));
+  }
+  if (executable === "php") return args.some(arg => /^-r(?:$|[^-])/.test(arg));
+  if (["python", "python3"].includes(executable)) return args.some(arg => /^-c(?:$|[^-])/.test(arg));
+  return false;
+}
+
+function isRecursiveWorldWritableChmod(args: string[]): boolean {
+  const recursive = args.some(arg => arg === "--recursive" || /^-[^-]*R/.test(arg));
+  if (!recursive) return false;
+  return args.some(arg => {
+    if (/^[0-7]{2,3}[2367]$/.test(arg)) return true;
+    return arg.split(",").some(clause => {
+      const symbolic = clause.match(/^([ugoa]*)([+=-])([rwxXstugo]*)$/);
+      return Boolean(
+        symbolic &&
+        (symbolic[1].includes("a") || symbolic[1].includes("o")) &&
+        (symbolic[2] === "+" || symbolic[2] === "=") &&
+        symbolic[3].includes("w"),
+      );
+    });
+  });
+}
+
+function isRawDiskWrite(executable: string, args: string[]): boolean {
+  if (executable !== "dd") return false;
+  return args.some(arg => /^of=\/dev\/(?:sd[a-z]\d*|nvme\d+n\d+(?:p\d+)?|r?disk[^/\s]*)$/i.test(arg));
+}
+
+function isDangerousGitPush(executable: string, args: string[]): boolean {
+  const pushIndex = executable === "git" ? args.indexOf("push") : -1;
+  if (pushIndex < 0) return false;
+  return args.slice(pushIndex + 1).some(arg =>
+    arg === "-f" ||
+    arg === "--mirror" ||
+    arg === "--delete" ||
+    arg === "--force" ||
+    arg.startsWith("--force=") ||
+    arg.startsWith("--force-with-lease"),
+  );
+}
+
+function isHomeOrSensitivePath(value: string): boolean {
+  const normalized = value.replace(/\\/g, "/");
+  return (
+    /^(?:~|\$HOME|\$\{HOME\})(?:\/|$)/.test(normalized) ||
+    /^\/(?:Users|home)\/[^/]+(?:\/|$)/.test(normalized) ||
+    SENSITIVE_PATH.test(normalized)
+  );
+}
+
+function isSensitiveArchiveCommand(executable: string, args: string[]): boolean {
+  return ARCHIVE_EXECUTABLE.test(executable) && args.some(isHomeOrSensitivePath);
+}
+
+function isRemoteRsync(args: string[]): boolean {
+  return args.some(arg => /^rsync:\/\//i.test(arg) || /^(?:[^/\s]+@)?[^/:\s]+:.+/.test(arg));
+}
+
 function higherRisk(left: RepairRiskLevel, right: RepairRiskLevel): RepairRiskLevel {
   return RISK_WEIGHT[left] >= RISK_WEIGHT[right] ? left : right;
 }
@@ -338,6 +404,15 @@ function inferredCommandRisk(command: RepairCommand): {
   const args = command.args.map(arg => arg.toLowerCase());
   const text = [executable, ...args].join(" ");
 
+  if (isDangerousGitPush(executable, args)) {
+    return { riskLevel: "high", mutationScope: "host_network" };
+  }
+  if (isSensitiveArchiveCommand(executable, command.args)) {
+    return {
+      riskLevel: "high",
+      mutationScope: executable === "rsync" ? "host_network" : "credentials",
+    };
+  }
   if (
     (executable === "brew" && args[0] === "install") ||
     (executable === "rbenv" && args[0] === "install") ||
@@ -505,6 +580,8 @@ export function validateRepairCommand(command: unknown): RepairSafetyValidation 
   if (SHELL_CONTROL.test(raw)) errors.push("hidden shell chaining, pipes, redirects, or substitution are not allowed");
   if (SHELL_EXECUTABLE.test(executableName)) errors.push("shell command interpreters are not allowed");
   if (executableName === "sudo" || /(^|\s)sudo(?:\s|$)/i.test(normalized)) errors.push("sudo is blocked");
+  if (isRawDiskWrite(executableName, args)) errors.push("raw disk writes are blocked");
+  if (isInlineCodeExecution(executableName, args)) errors.push("inline arbitrary code execution is blocked");
   const rmFlags = args.filter(arg => arg.startsWith("-"));
   const recursiveRm = rmFlags.some(arg => arg === "--recursive" || /^-[^-]*r/i.test(arg));
   const forceRm = rmFlags.some(arg => arg === "--force" || /^-[^-]*f/i.test(arg));
@@ -514,12 +591,8 @@ export function validateRepairCommand(command: unknown): RepairSafetyValidation 
   if (/(^|\s)(?:curl|wget)\b[^\n|]*\|\s*(?:ba|z|k|c|fi)?sh\b/i.test(raw)) {
     errors.push("pipe-to-shell downloads are blocked");
   }
-  if (
-    executableName === "chmod" &&
-    args.some(arg => arg === "--recursive" || /^-[^-]*R/.test(arg)) &&
-    args.includes("777")
-  ) {
-    errors.push("chmod -R 777 is blocked");
+  if (executableName === "chmod" && isRecursiveWorldWritableChmod(args)) {
+    errors.push("recursive world-writable chmod is blocked");
   }
   if (executableName === "chown" && args.some(arg => arg === "--recursive" || /^-[^-]*R/.test(arg))) {
     errors.push("chown -R is blocked");
@@ -534,9 +607,10 @@ export function validateRepairCommand(command: unknown): RepairSafetyValidation 
   }
 
   const referencedPaths = args.filter(arg => /[./\\]/.test(arg));
+  const sensitiveArchive = isSensitiveArchiveCommand(executableName, args);
   if (
     referencedPaths.some(isProtectedEnvPath) ||
-    referencedPaths.some(arg => SENSITIVE_PATH.test(arg.replace(/\\/g, "/")))
+    (!sensitiveArchive && referencedPaths.some(arg => SENSITIVE_PATH.test(arg.replace(/\\/g, "/"))))
   ) {
     errors.push("commands may not access protected environment or secret paths");
   }
@@ -549,7 +623,8 @@ export function validateRepairCommand(command: unknown): RepairSafetyValidation 
       args.some(arg => isProtectedEnvPath(arg.replace(/^@/, "")) || SENSITIVE_PATH.test(arg)) ||
       args.some(arg => ATTESTATION_PATH.test(arg.replace(/^@/, ""))) ||
       args.some(arg => /^(?:-F|--form|--data-binary|--upload-file|--post-file|-T)$/i.test(arg))
-    )
+    ) &&
+    !(executableName === "rsync" && sensitiveArchive && !isRemoteRsync(args))
   ) {
     errors.push("secret upload or exfiltration patterns are blocked");
   }
