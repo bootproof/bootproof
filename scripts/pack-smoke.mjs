@@ -223,7 +223,7 @@ try {
     expectedStatus: 1,
   });
   const remoteResult = JSON.parse(remote.stdout);
-  assert.equal(remoteResult.failureClass, "unknown_failure");
+  assert.equal(remoteResult.failureClass, "host_execution_not_acknowledged");
   assert.match(remoteResult.explanation, /will not execute remote repository code/);
   const remoteAttestation = path.join(installDir, remoteResult.attestationPath);
   assert(fs.existsSync(remoteAttestation), "remote safety refusal must write an attestation");

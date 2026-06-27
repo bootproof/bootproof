@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "build": "npm run clean && tsc -p tsconfig.json",
+    "build": "npm run clean && tsc -p tsconfig.json && chmod +x dist/cli.js",
     "prepack": "npm run build",
     "pack:check": "node scripts/pack-smoke.mjs",
     "release:check": "npm test && npm run build && npm run pack:check && npm publish --dry-run",
