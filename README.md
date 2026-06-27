@@ -26,6 +26,26 @@ AI coding agents can suggest commands, but they should not be trusted to declare
 
 **What this proves:** AI can help move the repo forward, but BootProof refuses to fake a green check. No proof, no green check.
 
+---
+
+### 3. The Living Receipt: proof that travels
+
+Attestations are JSON. That is the right shape for machines and CI, but it is the wrong shape for a human you are trying to convince. The Living Receipt is the same evidence, rendered as a **single self-contained HTML file** you can email, attach, or link from a README badge.
+
+Open it anywhere — no install, no network, no account — and three things happen in your browser, with zero external calls:
+
+1. **It re-verifies its own ed25519 signature** using Web Crypto. The signed message, the signature, and the public key are all embedded inline.
+2. **It replays the actual boot** — the inferred plan, the commands, the log timeline, the observed HTTP response (or the classified failure) — streaming in an embedded terminal.
+3. **If a single byte of the signed message is altered, the verdict collapses with the signature.** The boot stamp flips to `VERDICT UNVERIFIED — SIGNATURE INVALID`, because no claim inside a tampered receipt can be trusted. That is the whole point of the product: a green check that survives tampering would defeat the entire premise.
+
+Try it now — download [`assets/living-receipt.html`](assets/living-receipt.html), double-click it, and click **Tamper with signature** to watch the verdict collapse.
+
+<p align="center">
+  <a href="assets/living-receipt.html"><img src="https://img.shields.io/badge/open%20the%20Living%20Receipt-%E2%9C%93%20self--verifying%20HTML-0E9D5B?style=flat-square&labelColor=16181D" alt="Open the Living Receipt"></a>
+</p>
+
+**What this proves:** the receipt is not a description of a product — it *is* the product, and it runs the moment you open it. It works offline, survives being forwarded, and cannot be forged without breaking the signature. A platform-issued green check dies the moment you leave the platform. A Living Receipt travels.
+
 
 
 [![CI](https://github.com/bootproof/bootproof/actions/workflows/ci.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/ci.yml)

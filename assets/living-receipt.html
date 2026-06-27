@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bootproof — Living Receipt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAFAF7; --paper-2:#F2F1EB; --ink:#16181D; --graphite:#5A6170;
+    --line:#E3E1D8; --verdict:#0E9D5B; --verdict-ink:#0B7A47; --refusal:#D6453D;
+    --hedge:#A8761B; --term-bg:#101216; --term-ink:#D7DBE2; --term-dim:#7A8290;
+    --maxw:920px; --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    font-size:16px; line-height:1.65;
+    padding:0 0 96px;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  }
+  ::selection{background:var(--ink); color:var(--paper)}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px}
+  :focus-visible{outline:2px solid var(--ink); outline-offset:3px; border-radius:2px}
+
+  /* ---------- top bar ---------- */
+  nav.top{
+    border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:50;
+    background:rgba(250,250,247,.94);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  }
+  .nav-in{display:flex; align-items:center; justify-content:space-between; height:60px}
+  .wordmark{
+    font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:16px;
+    letter-spacing:-.02em; text-decoration:none; color:var(--ink);
+    display:flex; align-items:center; gap:10px;
+  }
+  .wordmark .logo-mark{width:24px; height:24px; display:block}
+  .nav-tag{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--graphite); letter-spacing:.04em}
+  .nav-tag .sep{color:var(--line); margin:0 8px}
+
+  /* ---------- hero ---------- */
+  .hero{padding:72px 0 36px}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.09em;
+    color:var(--graphite); text-transform:uppercase;
+    display:flex; gap:12px; align-items:center; margin-bottom:22px;
+  }
+  .eyebrow::before{content:""; width:36px; height:1px; background:var(--graphite)}
+  h1{
+    font-family:'Space Grotesk',sans-serif; font-weight:700;
+    font-size:clamp(34px,5.4vw,56px); line-height:1.02; letter-spacing:-.035em;
+    margin-bottom:18px; max-width:16ch;
+  }
+  .hero p.lede{font-size:18px; color:var(--graphite); max-width:60ch}
+  .hero p.lede b{color:var(--ink); font-weight:600}
+
+  .status-bar{
+    margin-top:28px; padding:14px 18px;
+    background:#fff; border:1.5px solid var(--ink); border-radius:10px;
+    box-shadow:0 2px 0 var(--ink);
+    font-family:'IBM Plex Mono',monospace; font-size:13px;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .status-bar .dot{
+    width:9px; height:9px; border-radius:50%; background:var(--graphite);
+    flex-shrink:0; transition:background 200ms;
+  }
+  .status-bar.ok  .dot{background:var(--verdict); animation:pulse 2.4s infinite}
+  .status-bar.bad .dot{background:var(--refusal)}
+  @keyframes pulse{
+    0%   {box-shadow:0 0 0 0 rgba(14,157,91,.4)}
+    70%  {box-shadow:0 0 0 8px rgba(14,157,91,0)}
+    100% {box-shadow:0 0 0 0 rgba(14,157,91,0)}
+  }
+
+  /* ---------- receipts ---------- */
+  .receipts{margin-top:36px}
+  .receipt{
+    background:#fff; border:1.5px solid var(--ink); border-radius:var(--radius);
+    margin-bottom:24px; overflow:hidden;
+    box-shadow:0 2px 0 var(--ink);
+    transition:border-color 200ms, box-shadow 200ms;
+  }
+  .receipt.tampered{
+    border-color:var(--refusal);
+    box-shadow:0 2px 0 var(--refusal);
+  }
+  .receipt header.r-head{
+    padding:18px 22px; border-bottom:1px solid var(--line);
+    background:var(--paper-2);
+  }
+  .r-head .repo-line{
+    font-family:'IBM Plex Mono',monospace; font-size:13px;
+    color:var(--ink); margin-bottom:4px; word-break:break-all;
+  }
+  .r-head .repo-line .label{color:var(--graphite); margin-right:6px}
+  .r-head .repo-line .url{color:var(--ink); font-weight:500}
+  .r-head .meta-line{
+    font-family:'IBM Plex Mono',monospace; font-size:12px;
+    color:var(--graphite); margin-top:2px;
+  }
+
+  .stamps{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px}
+  .stamp{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:5px 11px; border-radius:5px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600;
+    letter-spacing:.04em; text-transform:uppercase;
+    border:1.5px solid transparent;
+  }
+  .stamp .glyph{font-weight:700; font-size:13px; line-height:1}
+  .stamp.v-boots   {color:var(--verdict-ink); background:rgba(14,157,91,.1);  border-color:rgba(14,157,91,.35)}
+  .stamp.v-refused {color:var(--refusal);     background:rgba(214,69,61,.08); border-color:rgba(214,69,61,.3)}
+  .stamp.v-diag    {color:var(--hedge);       background:rgba(168,118,27,.1); border-color:rgba(168,118,27,.35)}
+  .stamp.v-pending {color:var(--graphite);    background:var(--paper-2);      border-color:var(--line)}
+
+  .receipt .body{padding:18px 22px 22px}
+
+  .kv{
+    display:grid; grid-template-columns:170px 1fr; gap:6px 14px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px;
+    margin-bottom:18px;
+  }
+  .kv .k{color:var(--graphite); text-transform:uppercase; letter-spacing:.05em; font-size:11px}
+  .kv .v{color:var(--ink); word-break:break-all}
+
+  /* terminal — same dark block as boot-proof.com */
+  .term{
+    background:var(--term-bg); color:var(--term-ink);
+    border-radius:0 var(--radius) var(--radius) var(--radius);
+    padding:18px 20px;
+    font-family:'IBM Plex Mono',monospace; font-size:13px; line-height:1.78;
+    min-height:230px; max-height:380px; overflow-y:auto;
+    margin-bottom:14px; white-space:pre-wrap; word-break:break-word;
+    box-shadow:0 30px 70px -30px rgba(22,24,29,.5);
+  }
+  .term .line{display:block; min-height:1.75em}
+  .term .line.info    {color:var(--term-ink)}
+  .term .line.success {color:#3DD68C; font-weight:600}
+  .term .line.error   {color:#F07670}
+  .term .line.fail    {color:#F07670; font-weight:700}
+  .term .dim          {color:var(--term-dim)}
+  .term .caret{
+    display:inline-block; width:8px; height:15px; background:var(--term-ink);
+    vertical-align:-2px; animation:blink 1s steps(1) infinite;
+  }
+  @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
+  .term.idle::before{
+    content:'Press Replay boot to watch the run. Every line is part of the signed message — tamper with the signature and the verdict below collapses.';
+    color:var(--term-dim); font-style:italic;
+  }
+
+  .button-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  button{
+    font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:500;
+    border:1.5px solid var(--ink); background:#fff; color:var(--ink);
+    padding:8px 16px; border-radius:7px; cursor:pointer;
+    transition:background .15s, color .15s, border-color .15s;
+  }
+  button:hover{background:var(--ink); color:var(--paper)}
+  button:disabled{opacity:.5; cursor:not-allowed}
+  button.primary{background:var(--ink); color:var(--paper)}
+  button.primary:hover{background:#2a2d33}
+  button.danger{border-color:var(--refusal); color:var(--refusal); background:rgba(214,69,61,.05)}
+  button.danger:hover{background:var(--refusal); color:#fff}
+  button.ghost{border-color:var(--line); color:var(--graphite); background:transparent}
+  button.ghost:hover{background:var(--paper-2); color:var(--ink); border-color:var(--ink)}
+
+  .tamper-banner{
+    display:none; margin-top:12px; padding:11px 14px;
+    background:rgba(214,69,61,.07); border:1.5px solid var(--refusal);
+    border-radius:7px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--refusal);
+    line-height:1.55;
+  }
+  .tamper-banner.show{display:block}
+  .tamper-banner b{font-weight:700}
+
+  details.sig{margin-top:16px; padding-top:16px; border-top:1px solid var(--line)}
+  details.sig summary{
+    cursor:pointer; color:var(--graphite);
+    font-family:'IBM Plex Mono',monospace; font-size:12px;
+    outline:none; list-style:none; letter-spacing:.04em;
+  }
+  details.sig summary::-webkit-details-marker{display:none}
+  details.sig summary::before{content:"> "; color:var(--verdict-ink)}
+  details.sig[open] summary::before{content:"v "}
+  details.sig .field-label{
+    color:var(--graphite); font-family:'IBM Plex Mono',monospace;
+    font-size:11px; margin-top:12px; margin-bottom:5px;
+    text-transform:uppercase; letter-spacing:.06em;
+  }
+  details.sig pre{
+    background:var(--term-bg); color:var(--term-ink);
+    border-radius:6px; padding:11px 14px;
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; line-height:1.6;
+    overflow-x:auto; white-space:pre-wrap; word-break:break-all;
+    max-height:280px; overflow-y:auto;
+  }
+
+  footer.page{
+    margin-top:48px; padding-top:24px; border-top:1px solid var(--line);
+    color:var(--graphite); font-size:13px; line-height:1.7; max-width:62ch;
+  }
+  footer.page code{
+    font-family:'IBM Plex Mono',monospace; font-size:12px;
+    background:var(--paper-2); padding:1px 6px; border-radius:3px; color:var(--ink);
+  }
+  footer.page a{color:var(--ink); text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:2px}
+
+  @media (max-width:600px){
+    .kv{grid-template-columns:1fr; gap:2px}
+    .kv .k{font-size:10.5px}
+    .hero{padding:48px 0 24px}
+    h1{font-size:32px}
+    .nav-tag{display:none}
+  }
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="wrap nav-in">
+    <a class="wordmark" href="https://boot-proof.com" rel="noopener">
+      <svg class="logo-mark" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+  <rect width="100" height="100" rx="22" fill="#16181D"/>
+  <path d="M 44.79 26.46 A 30 30 0 1 0 75.98 41" stroke="#FAFAF7" stroke-width="9" stroke-linecap="round"/>
+  <path d="M 34 57 L 46 70 L 67 18" stroke="#FAFAF7" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+      <span>bootproof</span>
+    </a>
+    <div class="nav-tag">
+      <span>Living Receipt</span><span class="sep">/</span><span>the run button that can't lie</span>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <section class="hero">
+    <div class="eyebrow">Living Receipt &middot; self-verifying</div>
+    <h1>The run button<br>that can't lie.</h1>
+    <p class="lede">
+      A single self-contained file. When you opened it, your browser ran
+      <b>crypto.subtle.verify('Ed25519', &hellip;)</b> locally &mdash; no network, no install, no account.
+      If a single byte of any signed message is altered, the receipt's verdict collapses with it.
+      That is the whole point.
+    </p>
+    <div class="status-bar" id="statusBar">
+      <span class="dot"></span>
+      <span id="statusText">Verifying signatures in your browser&hellip;</span>
+    </div>
+  </section>
+
+  <section class="receipts" id="receipts"></section>
+
+  <footer class="page">
+    <p>
+      This file is one HTML document. The ed25519 public key, signature, and signed message
+      for each receipt are embedded inline. The signed message attests that <b>this evidence was
+      produced and has not been altered since signing</b>. It does not by itself prove the signer's
+      machine was honest &mdash; that requires a neutral hosted runner, which is the documented
+      upgrade path for higher-stakes use cases.
+    </p>
+    <p style="margin-top:14px">
+      The honesty contract: <b>no verified boot without an observed health signal; no success rendering
+      for skipped steps; signed failed attestations for refusals and execution failures.</b>
+      A green check that survives tampering would defeat the entire product.
+    </p>
+    <p style="margin-top:14px">
+      <a href="https://boot-proof.com">boot-proof.com</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://github.com/bootproof/bootproof">github.com/bootproof/bootproof</a>
+      &nbsp;&middot;&nbsp;
+      <code>npx bootproof up &lt;any repo url&gt;</code>
+    </p>
+  </footer>
+
+</div>
+
+<script id="payload" type="application/json">[{"record":{"schema":"bootproof/record/v1","id":"rec_success_001","capturedAt":"2026-06-27T10:14:08Z","capturedBy":"bootproof-cli@0.3.0","trust":{"level":"local_developer_signed","signer":"local_ed25519","oidc":null},"repo":{"url":"https://github.com/mini-oss/edge-counter","commit":"a1b2c3d4e5f6","branch":"main"},"inference":{"language":"TypeScript","packageManager":"pnpm@10.24.0","startCommand":"pnpm dev"},"plan":[{"step":"install","command":"pnpm install","exitCode":0,"durationMs":4183},{"step":"start","command":"pnpm dev","exitCode":0,"durationMs":814}],"log":[{"t":0,"level":"info","line":"bootproof: inspecting repository…"},{"t":142,"level":"info","line":"  inferred package manager: pnpm@10.24.0"},{"t":188,"level":"info","line":"  inferred start command: pnpm dev"},{"t":244,"level":"info","line":"  running: pnpm install"},{"t":4427,"level":"info","line":"  dependencies installed (4.18s)"},{"t":4481,"level":"info","line":"  running: pnpm dev"},{"t":5295,"level":"info","line":"  > local:    http://localhost:3000"},{"t":5301,"level":"info","line":"bootproof: probing health endpoint…"},{"t":5348,"level":"info","line":"  HTTP GET http://localhost:3000/ -> 200 OK (47 ms)"},{"t":5348,"level":"success","line":"BOOTED — observed HTTP 200 at http://localhost:3000"}],"observed":{"kind":"http_response","url":"http://localhost:3000/","status":200,"latencyMs":47,"body":"OK"},"booted":true,"healthVerified":true,"failureClass":null},"message":"{\n  \"schema\": \"bootproof/record/v1\",\n  \"id\": \"rec_success_001\",\n  \"capturedAt\": \"2026-06-27T10:14:08Z\",\n  \"capturedBy\": \"bootproof-cli@0.3.0\",\n  \"trust\": {\n    \"level\": \"local_developer_signed\",\n    \"signer\": \"local_ed25519\",\n    \"oidc\": null\n  },\n  \"repo\": {\n    \"url\": \"https://github.com/mini-oss/edge-counter\",\n    \"commit\": \"a1b2c3d4e5f6\",\n    \"branch\": \"main\"\n  },\n  \"inference\": {\n    \"language\": \"TypeScript\",\n    \"packageManager\": \"pnpm@10.24.0\",\n    \"startCommand\": \"pnpm dev\"\n  },\n  \"plan\": [\n    {\n      \"step\": \"install\",\n      \"command\": \"pnpm install\",\n      \"exitCode\": 0,\n      \"durationMs\": 4183\n    },\n    {\n      \"step\": \"start\",\n      \"command\": \"pnpm dev\",\n      \"exitCode\": 0,\n      \"durationMs\": 814\n    }\n  ],\n  \"log\": [\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"bootproof: inspecting repository…\"\n    },\n    {\n      \"t\": 142,\n      \"level\": \"info\",\n      \"line\": \"  inferred package manager: pnpm@10.24.0\"\n    },\n    {\n      \"t\": 188,\n      \"level\": \"info\",\n      \"line\": \"  inferred start command: pnpm dev\"\n    },\n    {\n      \"t\": 244,\n      \"level\": \"info\",\n      \"line\": \"  running: pnpm install\"\n    },\n    {\n      \"t\": 4427,\n      \"level\": \"info\",\n      \"line\": \"  dependencies installed (4.18s)\"\n    },\n    {\n      \"t\": 4481,\n      \"level\": \"info\",\n      \"line\": \"  running: pnpm dev\"\n    },\n    {\n      \"t\": 5295,\n      \"level\": \"info\",\n      \"line\": \"  > local:    http://localhost:3000\"\n    },\n    {\n      \"t\": 5301,\n      \"level\": \"info\",\n      \"line\": \"bootproof: probing health endpoint…\"\n    },\n    {\n      \"t\": 5348,\n      \"level\": \"info\",\n      \"line\": \"  HTTP GET http://localhost:3000/ -> 200 OK (47 ms)\"\n    },\n    {\n      \"t\": 5348,\n      \"level\": \"success\",\n      \"line\": \"BOOTED — observed HTTP 200 at http://localhost:3000\"\n    }\n  ],\n  \"observed\": {\n    \"kind\": \"http_response\",\n    \"url\": \"http://localhost:3000/\",\n    \"status\": 200,\n    \"latencyMs\": 47,\n    \"body\": \"OK\"\n  },\n  \"booted\": true,\n  \"healthVerified\": true,\n  \"failureClass\": null\n}","signature":"tguim4X7k1u+jkLzAa03gO/VVriqjShpptQ73NeXCxgfWQwB023Kr52vAK6j7dLsCeZO1/h6A6as77IcGXF6DA==","publicKey":"MCowBQYDK2VwAyEAJjedctxgRWNIWJwgXXx3M2/NHY2qWUIsAwrrGm0YZXU="},{"record":{"schema":"bootproof/record/v1","id":"rec_segfault_001","capturedAt":"2026-06-27T10:18:42Z","capturedBy":"bootproof-cli@0.3.0","trust":{"level":"local_developer_signed","signer":"local_ed25519","oidc":null},"repo":{"url":"https://github.com/ai-slop-pr/feature-branch","commit":"9f8e7d6c5b4a","branch":"feat/ai-implementation"},"inference":{"language":"Rust","packageManager":"cargo@1.78","startCommand":"./target/debug/app"},"plan":[{"step":"build","command":"cargo build","exitCode":0,"durationMs":28142},{"step":"run","command":"./target/debug/app","exitCode":139,"durationMs":240}],"log":[{"t":0,"level":"info","line":"bootproof: inspecting repository…"},{"t":138,"level":"info","line":"  inferred language: Rust"},{"t":201,"level":"info","line":"  inferred start command: ./target/debug/app"},{"t":258,"level":"info","line":"  running: cargo build"},{"t":28400,"level":"info","line":"  build succeeded (28.14s, exit 0)"},{"t":28478,"level":"info","line":"  running: ./target/debug/app"},{"t":28694,"level":"info","line":"  > initializing worker pool…"},{"t":28705,"level":"info","line":"  > binding 0.0.0.0:8080…"},{"t":28718,"level":"error","line":"  Segmentation fault (core dumped)"},{"t":28718,"level":"error","line":"  process exited with signal SIGSEGV (code 139)"},{"t":28718,"level":"fail","line":"NOT VERIFIED — process_segfault"}],"observed":{"kind":"process_exit","signal":"SIGSEGV","code":139,"latencyMs":240},"booted":false,"healthVerified":false,"failureClass":"process_segfault"},"message":"{\n  \"schema\": \"bootproof/record/v1\",\n  \"id\": \"rec_segfault_001\",\n  \"capturedAt\": \"2026-06-27T10:18:42Z\",\n  \"capturedBy\": \"bootproof-cli@0.3.0\",\n  \"trust\": {\n    \"level\": \"local_developer_signed\",\n    \"signer\": \"local_ed25519\",\n    \"oidc\": null\n  },\n  \"repo\": {\n    \"url\": \"https://github.com/ai-slop-pr/feature-branch\",\n    \"commit\": \"9f8e7d6c5b4a\",\n    \"branch\": \"feat/ai-implementation\"\n  },\n  \"inference\": {\n    \"language\": \"Rust\",\n    \"packageManager\": \"cargo@1.78\",\n    \"startCommand\": \"./target/debug/app\"\n  },\n  \"plan\": [\n    {\n      \"step\": \"build\",\n      \"command\": \"cargo build\",\n      \"exitCode\": 0,\n      \"durationMs\": 28142\n    },\n    {\n      \"step\": \"run\",\n      \"command\": \"./target/debug/app\",\n      \"exitCode\": 139,\n      \"durationMs\": 240\n    }\n  ],\n  \"log\": [\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"bootproof: inspecting repository…\"\n    },\n    {\n      \"t\": 138,\n      \"level\": \"info\",\n      \"line\": \"  inferred language: Rust\"\n    },\n    {\n      \"t\": 201,\n      \"level\": \"info\",\n      \"line\": \"  inferred start command: ./target/debug/app\"\n    },\n    {\n      \"t\": 258,\n      \"level\": \"info\",\n      \"line\": \"  running: cargo build\"\n    },\n    {\n      \"t\": 28400,\n      \"level\": \"info\",\n      \"line\": \"  build succeeded (28.14s, exit 0)\"\n    },\n    {\n      \"t\": 28478,\n      \"level\": \"info\",\n      \"line\": \"  running: ./target/debug/app\"\n    },\n    {\n      \"t\": 28694,\n      \"level\": \"info\",\n      \"line\": \"  > initializing worker pool…\"\n    },\n    {\n      \"t\": 28705,\n      \"level\": \"info\",\n      \"line\": \"  > binding 0.0.0.0:8080…\"\n    },\n    {\n      \"t\": 28718,\n      \"level\": \"error\",\n      \"line\": \"  Segmentation fault (core dumped)\"\n    },\n    {\n      \"t\": 28718,\n      \"level\": \"error\",\n      \"line\": \"  process exited with signal SIGSEGV (code 139)\"\n    },\n    {\n      \"t\": 28718,\n      \"level\": \"fail\",\n      \"line\": \"NOT VERIFIED — process_segfault\"\n    }\n  ],\n  \"observed\": {\n    \"kind\": \"process_exit\",\n    \"signal\": \"SIGSEGV\",\n    \"code\": 139,\n    \"latencyMs\": 240\n  },\n  \"booted\": false,\n  \"healthVerified\": false,\n  \"failureClass\": \"process_segfault\"\n}","signature":"YGQsATcHvN/oEVMxpjPVUpnPSlnqPmvCep/DAuOnvgkg3HrT+1R0l6UbwZibfNaYm10sTA/QullXdfVur8L/Dg==","publicKey":"MCowBQYDK2VwAyEAJjedctxgRWNIWJwgXXx3M2/NHY2qWUIsAwrrGm0YZXU="}]</script>
+<script>
+(function () {
+  'use strict';
+
+  var PAYLOAD = JSON.parse(document.getElementById('payload').textContent);
+  var encoder = new TextEncoder();
+
+  function b64ToBytes(s) {
+    var bin = atob(s);
+    var arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr;
+  }
+
+  async function importKey(spkiB64) {
+    return crypto.subtle.importKey('spki', b64ToBytes(spkiB64), { name: 'Ed25519' }, false, ['verify']);
+  }
+
+  async function verifyOne(entry, messageOverride) {
+    var t0 = (performance && performance.now) ? performance.now() : Date.now();
+    try {
+      var key = await importKey(entry.publicKey);
+      var msg = messageOverride != null ? messageOverride : entry.message;
+      var ok = await crypto.subtle.verify('Ed25519', key, b64ToBytes(entry.signature), encoder.encode(msg));
+      var t1 = (performance && performance.now) ? performance.now() : Date.now();
+      return { ok: ok, ms: t1 - t0 };
+    } catch (e) {
+      return { ok: false, ms: 0, error: e.message };
+    }
+  }
+
+  function tamperMessage(msg) {
+    // Flip one alphanumeric character near the middle. Avoids JSON structural chars.
+    var arr = Array.from(msg);
+    var mid = Math.floor(arr.length / 2);
+    for (var i = mid; i < arr.length; i++) {
+      var c = arr[i];
+      if (/[a-zA-Z0-9]/.test(c)) {
+        arr[i] = c === 'a' ? 'b' : 'a';
+        return arr.join('');
+      }
+    }
+    arr[mid] = arr[mid] === 'X' ? 'Y' : 'X';
+    return arr.join('');
+  }
+
+  function compressTimeline(log) {
+    // Compress gaps > 700ms so a 28-second build still replays in seconds.
+    var lastT = 0;
+    return log.map(function (e) {
+      var gap = e.t - lastT;
+      var playGap = Math.min(gap, 500);
+      lastT = e.t;
+      return { t: e.t, level: e.level, line: e.line, playGap: playGap };
+    });
+  }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  // ---- stamp factories ------------------------------------------------------
+  // sigState: 'ok' | 'bad' | 'pending'
+  function sigStamp(sigState, msText) {
+    var s = el('span', 'stamp');
+    var glyph = el('span', 'glyph');
+    var label = '';
+    if (sigState === 'ok') {
+      s.className += ' v-boots';
+      glyph.textContent = '\u2713';
+      label = 'SIGNATURE VERIFIED';
+    } else if (sigState === 'bad') {
+      s.className += ' v-refused';
+      glyph.textContent = '\u2717';
+      label = 'SIGNATURE TAMPERED';
+    } else {
+      s.className += ' v-pending';
+      glyph.textContent = '\u25CB';
+      label = 'SIGNATURE PENDING';
+    }
+    s.appendChild(glyph);
+    s.appendChild(document.createTextNode(' ' + label));
+    if (msText) {
+      var small = el('span', '', ' (' + msText + ')');
+      small.style.color = 'var(--graphite)';
+      small.style.fontWeight = '400';
+      small.style.textTransform = 'none';
+      s.appendChild(small);
+    }
+    return s;
+  }
+
+  // bootState reflects what the receipt CLAIMS.
+  // sigState gates whether the claim is trusted.
+  //   sigState === 'ok'      -> show the claim normally
+  //   sigState === 'pending' -> show the claim but as pending
+  //   sigState === 'bad'     -> show VERDICT UNVERIFIED (hedge/amber), never the claim
+  function bootStamp(record, sigState) {
+    var s = el('span', 'stamp');
+    var glyph = el('span', 'glyph');
+    var label = '';
+    if (sigState === 'bad') {
+      // Cryptographic honesty: a tampered signature means NO claim inside
+      // the receipt can be trusted — including the boot verdict.
+      s.className += ' v-diag';
+      glyph.textContent = '!';
+      label = 'VERDICT UNVERIFIED \u2014 SIGNATURE INVALID';
+    } else if (sigState === 'pending') {
+      s.className += ' v-pending';
+      glyph.textContent = '\u25CB';
+      label = 'VERDICT PENDING';
+    } else if (record.booted && record.healthVerified) {
+      s.className += ' v-boots';
+      glyph.textContent = '\u2713';
+      var obs = record.observed;
+      if (obs.kind === 'http_response') {
+        label = 'BOOTED \u2014 HTTP ' + obs.status + ' (' + obs.latencyMs + ' ms)';
+      } else {
+        label = 'BOOTED';
+      }
+    } else if (record.booted) {
+      s.className += ' v-boots';
+      glyph.textContent = '\u2713';
+      label = 'BOOTED';
+    } else {
+      s.className += ' v-refused';
+      glyph.textContent = '\u2717';
+      label = 'NOT BOOTED \u2014 ' + (record.failureClass || 'unknown');
+    }
+    s.appendChild(glyph);
+    s.appendChild(document.createTextNode(' ' + label));
+    return s;
+  }
+
+  function renderReceipt(entry, idx) {
+    var record = entry.record;
+    var card = el('div', 'receipt');
+    card.dataset.id = record.id;
+
+    var head = el('header', 'r-head');
+    var repoLine = el('div', 'repo-line');
+    repoLine.appendChild(el('span', 'label', 'repo'));
+    repoLine.appendChild(el('span', 'url', record.repo.url));
+    head.appendChild(repoLine);
+
+    var metaLine1 = el('div', 'meta-line');
+    metaLine1.textContent = 'commit ' + record.repo.commit + '  branch ' + record.repo.branch +
+      '  captured ' + record.capturedAt + '  by ' + record.capturedBy;
+    head.appendChild(metaLine1);
+
+    var metaLine2 = el('div', 'meta-line');
+    metaLine2.textContent = 'inference: ' + record.inference.language + ' / ' + record.inference.packageManager +
+      '  start: ' + record.inference.startCommand;
+    head.appendChild(metaLine2);
+
+    var stamps = el('div', 'stamps');
+    var sigS = sigStamp('pending', null);
+    sigS.dataset.role = 'sig';
+    stamps.appendChild(sigS);
+    var bootS = bootStamp(record, 'pending');
+    bootS.dataset.role = 'boot';
+    stamps.appendChild(bootS);
+    head.appendChild(stamps);
+    card.appendChild(head);
+
+    var body = el('div', 'body');
+
+    var kv = el('div', 'kv');
+    function kvRow(k, v) {
+      kv.appendChild(el('div', 'k', k));
+      kv.appendChild(el('div', 'v', v));
+    }
+    var observed = record.observed;
+    var observedStr;
+    if (observed.kind === 'http_response') {
+      observedStr = 'HTTP ' + observed.status + ' ' + observed.url + ' (' + observed.latencyMs + ' ms) body=' + JSON.stringify(observed.body);
+    } else {
+      observedStr = 'process exited signal=' + observed.signal + ' code=' + observed.code + ' (' + observed.latencyMs + ' ms)';
+    }
+    kvRow('booted', String(record.booted));
+    kvRow('healthVerified', String(record.healthVerified));
+    kvRow('failureClass', record.failureClass || '(none)');
+    kvRow('observed', observedStr);
+    kvRow('trust.level', record.trust.level);
+    kvRow('trust.signer', record.trust.signer);
+    body.appendChild(kv);
+
+    var term = el('div', 'term idle');
+    term.dataset.role = 'term';
+    body.appendChild(term);
+
+    var buttonRow = el('div', 'button-row');
+    var replayBtn = el('button', 'primary', '\u25B6 Replay boot');
+    replayBtn.dataset.role = 'replay';
+    buttonRow.appendChild(replayBtn);
+    var tamperBtn = el('button', 'danger', 'Tamper with signature');
+    tamperBtn.dataset.role = 'tamper';
+    buttonRow.appendChild(tamperBtn);
+    body.appendChild(buttonRow);
+
+    var banner = el('div', 'tamper-banner');
+    banner.dataset.role = 'banner';
+    banner.innerHTML = '<b>Signature invalid.</b> One alphanumeric byte in the signed message was changed. ' +
+      'Because the boot verdict lives inside the signed message, an invalid signature means the verdict ' +
+      'can no longer be trusted either. Click "Restore original" to re-verify.';
+    body.appendChild(banner);
+
+    var sigDetails = el('details', 'sig');
+    sigDetails.appendChild(el('summary', '', 'Signed message, signature, and public key'));
+
+    sigDetails.appendChild(el('div', 'field-label', 'Public key (SPKI, base64)'));
+    sigDetails.appendChild(el('pre', '', entry.publicKey));
+
+    sigDetails.appendChild(el('div', 'field-label', 'Signature (ed25519, base64)'));
+    sigDetails.appendChild(el('pre', '', entry.signature));
+
+    sigDetails.appendChild(el('div', 'field-label', 'Signed message (pretty JSON, ' + entry.message.length + ' bytes)'));
+    var pre3 = el('pre', '', entry.message);
+    pre3.dataset.role = 'signedMessage';
+    sigDetails.appendChild(pre3);
+    body.appendChild(sigDetails);
+
+    card.appendChild(body);
+
+    // --- State ---------------------------------------------------------------
+    var state = {
+      message: entry.message,
+      sigState: 'pending',     // 'pending' | 'ok' | 'bad'
+      replaying: false,
+      lastReplayTimers: []
+    };
+
+    replayBtn.addEventListener('click', function () { startReplay(); });
+    tamperBtn.addEventListener('click', function () { toggleTamper(); });
+
+    function setSigStamp(newState, msText) {
+      state.sigState = newState;
+      var fresh = sigStamp(newState, msText);
+      fresh.dataset.role = 'sig';
+      var old = stamps.querySelector('[data-role="sig"]');
+      old.parentNode.replaceChild(fresh, old);
+      // Boot stamp depends on sig state — refresh it too.
+      refreshBootStamp();
+      // Card border reflects tamper state.
+      if (newState === 'bad') card.classList.add('tampered');
+      else card.classList.remove('tampered');
+      // Banner reflects tamper state.
+      if (newState === 'bad') banner.classList.add('show');
+      else banner.classList.remove('show');
+      // Button label reflects tamper state.
+      if (newState === 'bad') {
+        tamperBtn.textContent = 'Restore original';
+        tamperBtn.className = 'ghost';
+      } else {
+        tamperBtn.textContent = 'Tamper with signature';
+        tamperBtn.className = 'danger';
+      }
+    }
+
+    function refreshBootStamp() {
+      var fresh = bootStamp(record, state.sigState);
+      fresh.dataset.role = 'boot';
+      var old = stamps.querySelector('[data-role="boot"]');
+      old.parentNode.replaceChild(fresh, old);
+    }
+
+    async function reverify() {
+      setSigStamp('pending', null);
+      var result = await verifyOne(entry, state.message);
+      var msText = result.ms ? result.ms.toFixed(1) + ' ms' : null;
+      setSigStamp(result.ok ? 'ok' : 'bad', msText);
+      updateStatusBar();
+    }
+
+    function toggleTamper() {
+      if (state.sigState === 'bad') {
+        // Restore
+        state.message = entry.message;
+        var sm = sigDetails.querySelector('[data-role="signedMessage"]');
+        sm.textContent = entry.message;
+      } else {
+        // Tamper
+        state.message = tamperMessage(entry.message);
+        var sm2 = sigDetails.querySelector('[data-role="signedMessage"]');
+        sm2.textContent = state.message;
+      }
+      reverify();
+    }
+
+    function startReplay() {
+      if (state.replaying) {
+        state.lastReplayTimers.forEach(clearTimeout);
+        state.lastReplayTimers = [];
+      }
+      state.replaying = true;
+      replayBtn.disabled = true;
+      replayBtn.textContent = 'Replaying\u2026';
+      term.classList.remove('idle');
+      term.innerHTML = '';
+      var compressed = compressTimeline(record.log);
+      var caret = el('span', 'caret');
+      term.appendChild(caret);
+
+      var acc = 0;
+      compressed.forEach(function (e, i) {
+        acc += e.playGap;
+        var timer = setTimeout(function () {
+          var line = el('span', 'line ' + e.level, e.line);
+          term.insertBefore(line, caret);
+          term.scrollTop = term.scrollHeight;
+          if (i === compressed.length - 1) {
+            state.replaying = false;
+            replayBtn.disabled = false;
+            replayBtn.textContent = '\u25B6 Replay again';
+          }
+        }, acc);
+        state.lastReplayTimers.push(timer);
+      });
+    }
+
+    return { card: card, reverify: reverify };
+  }
+
+  function updateStatusBar() {
+    var stamps = document.querySelectorAll('.receipt .stamp[data-role="sig"]');
+    var ok = 0, bad = 0, pending = 0;
+    stamps.forEach(function (s) {
+      if (s.classList.contains('v-boots')) ok++;
+      else if (s.classList.contains('v-refused')) bad++;
+      else pending++;
+    });
+    var bar = document.getElementById('statusBar');
+    var text = document.getElementById('statusText');
+    if (pending > 0) {
+      bar.className = 'status-bar';
+      text.textContent = 'Verifying signatures\u2026';
+    } else if (bad > 0) {
+      bar.className = 'status-bar bad';
+      text.textContent = bad + ' of ' + stamps.length + ' signature(s) TAMPERED \u2014 ' + ok + ' verified. No verdict in a tampered receipt can be trusted.';
+    } else {
+      bar.className = 'status-bar ok';
+      text.textContent = ok + ' of ' + stamps.length + ' signature(s) verified in your browser. No network calls were made.';
+    }
+  }
+
+  var controllers = [];
+
+  async function init() {
+    var container = document.getElementById('receipts');
+    PAYLOAD.forEach(function (entry) {
+      var ctrl = renderReceipt(entry);
+      container.appendChild(ctrl.card);
+      controllers.push(ctrl);
+    });
+    updateStatusBar();
+    await Promise.all(controllers.map(function (ctrl) {
+      return ctrl.reverify();
+    }));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
