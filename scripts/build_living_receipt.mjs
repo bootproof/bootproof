@@ -324,6 +324,98 @@ const HTML = `<!DOCTYPE html>
   }
   footer.page a{color:var(--ink); text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:2px}
 
+  /* ---------- PLG loop: first-time visitor banner ---------- */
+  .first-time{
+    margin-top:20px; padding:16px 18px;
+    background:var(--ink); color:var(--paper);
+    border-radius:10px; font-size:14px; line-height:1.6;
+    display:flex; gap:14px; align-items:flex-start;
+  }
+  .first-time .ft-body{flex:1}
+  .first-time .ft-title{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600;
+    letter-spacing:.06em; text-transform:uppercase; color:#3DD68C; margin-bottom:6px;
+  }
+  .first-time .ft-text{color:var(--paper-2)}
+  .first-time .ft-text b{color:#fff}
+  .first-time .ft-text a{color:#3DD68C; text-decoration:underline; text-underline-offset:2px}
+  .first-time .ft-cta{
+    display:inline-block; margin-top:10px; padding:6px 14px;
+    background:#3DD68C; color:var(--ink); border-radius:5px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600;
+    text-decoration:none; letter-spacing:.03em;
+  }
+  .first-time .ft-cta:hover{background:#5CE19A}
+  .first-time .ft-dismiss{
+    background:none; border:none; color:var(--term-dim);
+    font-size:18px; cursor:pointer; padding:0 4px; line-height:1;
+    font-family:inherit;
+  }
+  .first-time .ft-dismiss:hover{color:#fff; background:none}
+
+  /* ---------- PLG loop: share + embed ---------- */
+  .share-row{
+    margin-top:12px; padding:12px 14px;
+    background:var(--paper-2); border:1px solid var(--line); border-radius:7px;
+  }
+  .share-row .share-label{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+    color:var(--graphite); text-transform:uppercase; letter-spacing:.06em;
+    margin-bottom:8px;
+  }
+  .share-row .share-buttons{display:flex; gap:6px; flex-wrap:wrap}
+  .share-row button{font-size:12px; padding:6px 12px}
+  .share-row .copied{
+    display:none; margin-left:8px; color:var(--verdict-ink);
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+  }
+  .share-row .copied.show{display:inline-block}
+  details.embed{
+    margin-top:10px; padding-top:10px; border-top:1px solid var(--line);
+  }
+  details.embed summary{
+    cursor:pointer; color:var(--graphite);
+    font-family:'IBM Plex Mono',monospace; font-size:11px;
+    outline:none; list-style:none; letter-spacing:.04em;
+    text-transform:uppercase; font-weight:600;
+  }
+  details.embed summary::-webkit-details-marker{display:none}
+  details.embed summary::before{content:"> "; color:var(--verdict-ink)}
+  details.embed[open] summary::before{content:"v "}
+  details.embed pre{
+    margin-top:8px; background:var(--term-bg); color:var(--term-ink);
+    border-radius:5px; padding:10px 12px;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; line-height:1.6;
+    overflow-x:auto; white-space:pre-wrap; word-break:break-all;
+  }
+  details.embed .copy-embed{
+    margin-top:6px; font-size:11px; padding:4px 10px;
+  }
+
+  /* ---------- PLG loop: page-level CTA ---------- */
+  .cta-bar{
+    margin-top:32px; padding:24px; background:var(--ink); color:var(--paper);
+    border-radius:12px; text-align:center;
+  }
+  .cta-bar h2{
+    font-family:'Space Grotesk',sans-serif; font-weight:700;
+    font-size:24px; letter-spacing:-.02em; margin-bottom:8px;
+  }
+  .cta-bar p{color:var(--paper-2); font-size:14px; margin-bottom:14px}
+  .cta-bar .cmd-display{
+    display:inline-block; padding:10px 18px;
+    background:#000; color:#3DD68C;
+    border-radius:6px;
+    font-family:'IBM Plex Mono',monospace; font-size:14px;
+    border:1px solid #2a2d33;
+  }
+  .cta-bar .cmd-display .dollar{color:var(--term-dim)}
+  .cta-bar a.cta-link{
+    display:inline-block; margin-top:12px; color:#3DD68C;
+    text-decoration:underline; text-underline-offset:3px;
+    font-family:'IBM Plex Mono',monospace; font-size:13px;
+  }
+
   @media (max-width:600px){
     .kv{grid-template-columns:1fr; gap:2px}
     .kv .k{font-size:10.5px}
@@ -359,6 +451,20 @@ const HTML = `<!DOCTYPE html>
       That is the whole point.
     </p>
     <span class="real-badge">Real boot captured by bootproof up &middot; not mock data</span>
+
+    <div class="first-time" id="firstTime">
+      <div class="ft-body">
+        <div class="ft-title">You're holding a Living Receipt</div>
+        <div class="ft-text">
+          Someone ran <b>bootproof up</b> on a real repository, captured real evidence that it boots (or doesn't),
+          and signed it. This file re-proves that to you, offline, with nothing installed.
+          Forward it &mdash; it verifies itself on the next machine.
+        </div>
+        <a class="ft-cta" href="https://github.com/bootproof/bootproof#readme" target="_blank" rel="noopener">Get your own receipt &rarr;</a>
+      </div>
+      <button class="ft-dismiss" id="ftDismiss" aria-label="dismiss">&times;</button>
+    </div>
+
     <div class="status-bar" id="statusBar">
       <span class="dot"></span>
       <span id="statusText">Verifying signatures in your browser&hellip;</span>
@@ -366,6 +472,14 @@ const HTML = `<!DOCTYPE html>
   </section>
 
   <section class="receipts" id="receipts"></section>
+
+  <div class="cta-bar">
+    <h2>Got a repo that needs proof?</h2>
+    <p>Point BootProof at any repository. It boots what it can, refuses what it can't prove, and signs the receipt.</p>
+    <div class="cmd-display"><span class="dollar">$</span> npx bootproof up &lt;any-repo-url&gt;</div>
+    <br>
+    <a class="cta-link" href="https://github.com/bootproof/bootproof#readme" target="_blank" rel="noopener">github.com/bootproof/bootproof &rarr;</a>
+  </div>
 
   <footer class="page">
     <p>
@@ -660,6 +774,37 @@ const HTML = `<!DOCTYPE html>
     buttonRow.appendChild(tamperBtn);
     body.appendChild(buttonRow);
 
+    // PLG loop: share + embed section
+    var shareRow = el('div', 'share-row');
+    shareRow.appendChild(el('div', 'share-label', 'Share this receipt'));
+    var shareButtons = el('div', 'share-buttons');
+    var copySnippetBtn = el('button', 'ghost', 'Copy markdown badge');
+    copySnippetBtn.dataset.role = 'copySnippet';
+    shareButtons.appendChild(copySnippetBtn);
+    var downloadBtn = el('button', 'ghost', 'Download this file');
+    downloadBtn.dataset.role = 'download';
+    shareButtons.appendChild(downloadBtn);
+    var copied = el('span', 'copied', '\\u2713 copied');
+    shareButtons.appendChild(copied);
+    shareRow.appendChild(shareButtons);
+
+    // Embed details — shows the markdown badge snippet for this specific receipt
+    var embedDetails = el('details', 'embed');
+    embedDetails.appendChild(el('summary', '', 'Embed this verdict in a README'));
+    var embedPre = el('pre', '');
+    embedPre.dataset.role = 'embedSnippet';
+    var badgeColor = (record.booted && record.healthVerified) ? '0E9D5B' : (record.booted ? '0E9D5B' : 'D6453D');
+    var badgeText = (record.booted && record.healthVerified) ? '%E2%9C%93%20booted' : (record.booted ? '%E2%9C%93%20booted' : '%E2%9C%97%20not%20booted');
+    var badgeLabel = record.repo.label || 'repo';
+    var snippet = '[![bootproof](https://img.shields.io/badge/bootproof-' + badgeText + '-' + badgeColor + '?style=flat-square&labelColor=16181D)](./proof.bootproof.html)';
+    embedPre.textContent = snippet;
+    embedDetails.appendChild(embedPre);
+    var copyEmbedBtn = el('button', 'ghost copy-embed', 'Copy snippet');
+    copyEmbedBtn.dataset.role = 'copyEmbed';
+    embedDetails.appendChild(copyEmbedBtn);
+    shareRow.appendChild(embedDetails);
+    body.appendChild(shareRow);
+
     var banner = el('div', 'tamper-banner');
     banner.dataset.role = 'banner';
     banner.innerHTML = '<b>Signature invalid.</b> One alphanumeric byte in the signed message was changed. ' +
@@ -688,11 +833,58 @@ const HTML = `<!DOCTYPE html>
       message: entry.message,
       sigState: 'pending',
       replaying: false,
-      lastReplayTimers: []
+      lastReplayTimers: [],
+      snippet: snippet
     };
 
     replayBtn.addEventListener('click', function () { startReplay(); });
     tamperBtn.addEventListener('click', function () { toggleTamper(); });
+
+    // PLG loop: share / embed / copy handlers
+    function showCopied(span) {
+      span.classList.add('show');
+      setTimeout(function () { span.classList.remove('show'); }, 1800);
+    }
+    copySnippetBtn.addEventListener('click', function () {
+      try {
+        navigator.clipboard.writeText(state.snippet);
+        showCopied(copied);
+      } catch (e) {
+        // Fallback for older browsers / file://
+        var ta = document.createElement('textarea');
+        ta.value = state.snippet;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showCopied(copied); } catch (e2) {}
+        document.body.removeChild(ta);
+      }
+    });
+    copyEmbedBtn.addEventListener('click', function () {
+      try {
+        navigator.clipboard.writeText(state.snippet);
+        showCopied(copied);
+      } catch (e) {
+        var ta = document.createElement('textarea');
+        ta.value = state.snippet;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showCopied(copied); } catch (e2) {}
+        document.body.removeChild(ta);
+      }
+    });
+    downloadBtn.addEventListener('click', function () {
+      // The file IS the product. Download a copy of this exact HTML.
+      var html = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
+      var blob = new Blob([html], { type: 'text/html' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'proof.bootproof.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    });
 
     function setSigStamp(newState, msText, mode) {
       state.sigState = newState;
@@ -811,6 +1003,16 @@ const HTML = `<!DOCTYPE html>
       controllers.push(ctrl);
     });
     updateStatusBar();
+
+    // First-time visitor banner dismiss
+    var ftDismiss = document.getElementById('ftDismiss');
+    if (ftDismiss) {
+      ftDismiss.addEventListener('click', function () {
+        var ft = document.getElementById('firstTime');
+        if (ft) ft.style.display = 'none';
+      });
+    }
+
     await Promise.all(controllers.map(function (ctrl) {
       return ctrl.reverify();
     }));

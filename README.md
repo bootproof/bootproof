@@ -68,6 +68,14 @@ node scripts/verify_living_receipt.mjs
 
 **What this proves:** the receipt is not a description of a product — it *is* the product, and it runs the moment you open it. It works offline, survives being forwarded, and cannot be forged without breaking the signature. A platform-issued green check dies the moment you leave the platform. A Living Receipt travels.
 
+**The PLG loop is wired in.** Every receipt now carries:
+- A first-time visitor banner ("You're holding a Living Receipt — forward it, it verifies itself on the next machine")
+- A "Copy markdown badge" button that generates a `[![bootproof](...)](./proof.bootproof.html)` snippet for this specific receipt's verdict
+- A "Download this file" button — the file IS the product, one tap to share it
+- A page-level CTA: `npx bootproof up <any-repo-url>`
+
+Every receipt is a self-proving advertisement. Every badge in the wild is a link. Every click is a developer asking "what is this?" — and the answer is the product. See [`assets/bootproof-badge-template.md`](assets/bootproof-badge-template.md) for copy-paste badge snippets, and [`docs/LAUNCH_PLAYBOOK.md`](docs/LAUNCH_PLAYBOOK.md) for the "First 1,000 Receipts" distribution sequence.
+
 
 
 [![CI](https://github.com/bootproof/bootproof/actions/workflows/ci.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/ci.yml)
