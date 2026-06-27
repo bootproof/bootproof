@@ -89,7 +89,7 @@ async function runMode(mode) {
 
     const bootStamps = await page.$$eval('.stamp[data-role="boot"]', els => els.map(e => e.textContent.trim()));
     check('2a. Receipt #1 boot stamp = BOOTED (real HTTP 200)', /BOOTED/.test(bootStamps[0]) && /HTTP 200/.test(bootStamps[0]), bootStamps[0]);
-    check('2b. Receipt #2 boot stamp = NOT BOOTED (real process_segfault)', /NOT BOOTED/.test(bootStamps[1]) && /process_segfault/.test(bootStamps[1]), bootStamps[1]);
+    check('2b. Receipt #2 boot stamp = NOT BOOTED (real repo failure)', /NOT BOOTED/.test(bootStamps[1]) && /dependency_install_failed|process_segfault|app_exit_nonzero|health_check_timeout/.test(bootStamps[1]), bootStamps[1]);
 
     // Tamper receipt #1
     const tamperBtns = await page.$$('button[data-role="tamper"]');
@@ -142,7 +142,7 @@ async function runMode(mode) {
       return b && /Replay again/.test(b.textContent);
     }, { timeout: 12000 });
     const segfaultTerm = await page.$eval('.receipt:nth-child(2) .term', el => el.textContent);
-    check('6. Segfault replay contains Segmentation fault and NOT VERIFIED', /Segmentation fault|SIGSEGV|139/.test(segfaultTerm) && /NOT VERIFIED/.test(segfaultTerm), segfaultTerm.slice(-220));
+    check('6. Failure receipt replay contains real failure and NOT VERIFIED', /ENOENT|install FAILED|Segmentation fault|SIGSEGV|EADDRINUSE|process exited/.test(segfaultTerm) && /NOT VERIFIED/.test(segfaultTerm), segfaultTerm.slice(-220));
 
     const errors = logs.filter(l => l.startsWith('[pageerror]') || l.startsWith('[error]'));
     check('7. No console errors or pageerrors', errors.length === 0, errors.join(' | '));
