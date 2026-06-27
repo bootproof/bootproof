@@ -28,7 +28,6 @@
   .wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px}
   :focus-visible{outline:2px solid var(--ink); outline-offset:3px; border-radius:2px}
 
-  /* ---------- top bar ---------- */
   nav.top{
     border-bottom:1px solid var(--line);
     position:sticky; top:0; z-index:50;
@@ -45,7 +44,6 @@
   .nav-tag{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--graphite); letter-spacing:.04em}
   .nav-tag .sep{color:var(--line); margin:0 8px}
 
-  /* ---------- hero ---------- */
   .hero{padding:72px 0 36px}
   .eyebrow{
     font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.09em;
@@ -60,6 +58,13 @@
   }
   .hero p.lede{font-size:18px; color:var(--graphite); max-width:60ch}
   .hero p.lede b{color:var(--ink); font-weight:600}
+  .real-badge{
+    display:inline-block; margin-top:14px; padding:4px 10px;
+    background:rgba(14,157,91,.1); border:1.5px solid rgba(14,157,91,.35);
+    color:var(--verdict-ink); border-radius:5px;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+    letter-spacing:.06em; text-transform:uppercase;
+  }
 
   .status-bar{
     margin-top:28px; padding:14px 18px;
@@ -80,7 +85,6 @@
     100% {box-shadow:0 0 0 0 rgba(14,157,91,0)}
   }
 
-  /* ---------- receipts ---------- */
   .receipts{margin-top:36px}
   .receipt{
     background:#fff; border:1.5px solid var(--ink); border-radius:var(--radius);
@@ -131,7 +135,6 @@
   .kv .k{color:var(--graphite); text-transform:uppercase; letter-spacing:.05em; font-size:11px}
   .kv .v{color:var(--ink); word-break:break-all}
 
-  /* terminal — same dark block as boot-proof.com */
   .term{
     background:var(--term-bg); color:var(--term-ink);
     border-radius:0 var(--radius) var(--radius) var(--radius);
@@ -153,7 +156,7 @@
   }
   @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
   .term.idle::before{
-    content:'Press Replay boot to watch the run. Every line is part of the signed message — tamper with the signature and the verdict below collapses.';
+    content:'Press Replay boot to watch the real captured run. Every line is part of the signed message — tamper with the signature and the verdict collapses.';
     color:var(--term-dim); font-style:italic;
   }
 
@@ -245,14 +248,15 @@
 <div class="wrap">
 
   <section class="hero">
-    <div class="eyebrow">Living Receipt &middot; self-verifying</div>
+    <div class="eyebrow">Living Receipt &middot; real capture &middot; self-verifying</div>
     <h1>The run button<br>that can't lie.</h1>
     <p class="lede">
       A single self-contained file. When you opened it, your browser ran
-      <b>crypto.subtle.verify('Ed25519', &hellip;)</b> locally &mdash; no network, no install, no account.
+      <b>Ed25519 verification</b> locally &mdash; no network, no install, no account.
       If a single byte of any signed message is altered, the receipt's verdict collapses with it.
       That is the whole point.
     </p>
+    <span class="real-badge">Real boot captured by bootproof up &middot; not mock data</span>
     <div class="status-bar" id="statusBar">
       <span class="dot"></span>
       <span id="statusText">Verifying signatures in your browser&hellip;</span>
@@ -265,14 +269,24 @@
     <p>
       This file is one HTML document. The ed25519 public key, signature, and signed message
       for each receipt are embedded inline. The signed message attests that <b>this evidence was
-      produced and has not been altered since signing</b>. It does not by itself prove the signer's
-      machine was honest &mdash; that requires a neutral hosted runner, which is the documented
-      upgrade path for higher-stakes use cases.
+      produced and has not been altered since signing</b>. The boot logs and observed HTTP
+      responses above are <b>real captures</b> from a real <code>bootproof up</code> run against
+      a real repository &mdash; not hand-authored mock data.
     </p>
     <p style="margin-top:14px">
-      The honesty contract: <b>no verified boot without an observed health signal; no success rendering
-      for skipped steps; signed failed attestations for refusals and execution failures.</b>
-      A green check that survives tampering would defeat the entire product.
+      <b>Trust ladder.</b> This receipt is signed at the <code>local_developer_signed</code>
+      level &mdash; it proves integrity-since-signing, not that the signer's machine was honest.
+      The documented upgrade path is: <code>local_developer_signed</code> &rarr;
+      <code>ci_oidc_signed</code> (CI runner with OIDC token) &rarr;
+      <code>neutral_runner_signed</code> (BootProof's neutral hosted runner) &rarr;
+      <code>transparency_logged</code> (neutral runner + public log entry).
+      The same file format and the same wow experience survive every step up the ladder;
+      only the signer's identity climbs.
+    </p>
+    <p style="margin-top:14px">
+      <b>Browser fallback.</b> Native Ed25519 in WebCrypto ships in Chrome 137, Firefox, and Safari.
+      For the ~20% of users on older browsers, this file falls back to a pure-JS
+      <code>@noble/curves</code> verifier bundled inline &mdash; the receipt never fails to verify silently.
     </p>
     <p style="margin-top:14px">
       <a href="https://boot-proof.com">boot-proof.com</a>
@@ -285,13 +299,31 @@
 
 </div>
 
-<script id="payload" type="application/json">[{"record":{"schema":"bootproof/record/v1","id":"rec_success_001","capturedAt":"2026-06-27T10:14:08Z","capturedBy":"bootproof-cli@0.3.0","trust":{"level":"local_developer_signed","signer":"local_ed25519","oidc":null},"repo":{"url":"https://github.com/mini-oss/edge-counter","commit":"a1b2c3d4e5f6","branch":"main"},"inference":{"language":"TypeScript","packageManager":"pnpm@10.24.0","startCommand":"pnpm dev"},"plan":[{"step":"install","command":"pnpm install","exitCode":0,"durationMs":4183},{"step":"start","command":"pnpm dev","exitCode":0,"durationMs":814}],"log":[{"t":0,"level":"info","line":"bootproof: inspecting repository…"},{"t":142,"level":"info","line":"  inferred package manager: pnpm@10.24.0"},{"t":188,"level":"info","line":"  inferred start command: pnpm dev"},{"t":244,"level":"info","line":"  running: pnpm install"},{"t":4427,"level":"info","line":"  dependencies installed (4.18s)"},{"t":4481,"level":"info","line":"  running: pnpm dev"},{"t":5295,"level":"info","line":"  > local:    http://localhost:3000"},{"t":5301,"level":"info","line":"bootproof: probing health endpoint…"},{"t":5348,"level":"info","line":"  HTTP GET http://localhost:3000/ -> 200 OK (47 ms)"},{"t":5348,"level":"success","line":"BOOTED — observed HTTP 200 at http://localhost:3000"}],"observed":{"kind":"http_response","url":"http://localhost:3000/","status":200,"latencyMs":47,"body":"OK"},"booted":true,"healthVerified":true,"failureClass":null},"message":"{\n  \"schema\": \"bootproof/record/v1\",\n  \"id\": \"rec_success_001\",\n  \"capturedAt\": \"2026-06-27T10:14:08Z\",\n  \"capturedBy\": \"bootproof-cli@0.3.0\",\n  \"trust\": {\n    \"level\": \"local_developer_signed\",\n    \"signer\": \"local_ed25519\",\n    \"oidc\": null\n  },\n  \"repo\": {\n    \"url\": \"https://github.com/mini-oss/edge-counter\",\n    \"commit\": \"a1b2c3d4e5f6\",\n    \"branch\": \"main\"\n  },\n  \"inference\": {\n    \"language\": \"TypeScript\",\n    \"packageManager\": \"pnpm@10.24.0\",\n    \"startCommand\": \"pnpm dev\"\n  },\n  \"plan\": [\n    {\n      \"step\": \"install\",\n      \"command\": \"pnpm install\",\n      \"exitCode\": 0,\n      \"durationMs\": 4183\n    },\n    {\n      \"step\": \"start\",\n      \"command\": \"pnpm dev\",\n      \"exitCode\": 0,\n      \"durationMs\": 814\n    }\n  ],\n  \"log\": [\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"bootproof: inspecting repository…\"\n    },\n    {\n      \"t\": 142,\n      \"level\": \"info\",\n      \"line\": \"  inferred package manager: pnpm@10.24.0\"\n    },\n    {\n      \"t\": 188,\n      \"level\": \"info\",\n      \"line\": \"  inferred start command: pnpm dev\"\n    },\n    {\n      \"t\": 244,\n      \"level\": \"info\",\n      \"line\": \"  running: pnpm install\"\n    },\n    {\n      \"t\": 4427,\n      \"level\": \"info\",\n      \"line\": \"  dependencies installed (4.18s)\"\n    },\n    {\n      \"t\": 4481,\n      \"level\": \"info\",\n      \"line\": \"  running: pnpm dev\"\n    },\n    {\n      \"t\": 5295,\n      \"level\": \"info\",\n      \"line\": \"  > local:    http://localhost:3000\"\n    },\n    {\n      \"t\": 5301,\n      \"level\": \"info\",\n      \"line\": \"bootproof: probing health endpoint…\"\n    },\n    {\n      \"t\": 5348,\n      \"level\": \"info\",\n      \"line\": \"  HTTP GET http://localhost:3000/ -> 200 OK (47 ms)\"\n    },\n    {\n      \"t\": 5348,\n      \"level\": \"success\",\n      \"line\": \"BOOTED — observed HTTP 200 at http://localhost:3000\"\n    }\n  ],\n  \"observed\": {\n    \"kind\": \"http_response\",\n    \"url\": \"http://localhost:3000/\",\n    \"status\": 200,\n    \"latencyMs\": 47,\n    \"body\": \"OK\"\n  },\n  \"booted\": true,\n  \"healthVerified\": true,\n  \"failureClass\": null\n}","signature":"tguim4X7k1u+jkLzAa03gO/VVriqjShpptQ73NeXCxgfWQwB023Kr52vAK6j7dLsCeZO1/h6A6as77IcGXF6DA==","publicKey":"MCowBQYDK2VwAyEAJjedctxgRWNIWJwgXXx3M2/NHY2qWUIsAwrrGm0YZXU="},{"record":{"schema":"bootproof/record/v1","id":"rec_segfault_001","capturedAt":"2026-06-27T10:18:42Z","capturedBy":"bootproof-cli@0.3.0","trust":{"level":"local_developer_signed","signer":"local_ed25519","oidc":null},"repo":{"url":"https://github.com/ai-slop-pr/feature-branch","commit":"9f8e7d6c5b4a","branch":"feat/ai-implementation"},"inference":{"language":"Rust","packageManager":"cargo@1.78","startCommand":"./target/debug/app"},"plan":[{"step":"build","command":"cargo build","exitCode":0,"durationMs":28142},{"step":"run","command":"./target/debug/app","exitCode":139,"durationMs":240}],"log":[{"t":0,"level":"info","line":"bootproof: inspecting repository…"},{"t":138,"level":"info","line":"  inferred language: Rust"},{"t":201,"level":"info","line":"  inferred start command: ./target/debug/app"},{"t":258,"level":"info","line":"  running: cargo build"},{"t":28400,"level":"info","line":"  build succeeded (28.14s, exit 0)"},{"t":28478,"level":"info","line":"  running: ./target/debug/app"},{"t":28694,"level":"info","line":"  > initializing worker pool…"},{"t":28705,"level":"info","line":"  > binding 0.0.0.0:8080…"},{"t":28718,"level":"error","line":"  Segmentation fault (core dumped)"},{"t":28718,"level":"error","line":"  process exited with signal SIGSEGV (code 139)"},{"t":28718,"level":"fail","line":"NOT VERIFIED — process_segfault"}],"observed":{"kind":"process_exit","signal":"SIGSEGV","code":139,"latencyMs":240},"booted":false,"healthVerified":false,"failureClass":"process_segfault"},"message":"{\n  \"schema\": \"bootproof/record/v1\",\n  \"id\": \"rec_segfault_001\",\n  \"capturedAt\": \"2026-06-27T10:18:42Z\",\n  \"capturedBy\": \"bootproof-cli@0.3.0\",\n  \"trust\": {\n    \"level\": \"local_developer_signed\",\n    \"signer\": \"local_ed25519\",\n    \"oidc\": null\n  },\n  \"repo\": {\n    \"url\": \"https://github.com/ai-slop-pr/feature-branch\",\n    \"commit\": \"9f8e7d6c5b4a\",\n    \"branch\": \"feat/ai-implementation\"\n  },\n  \"inference\": {\n    \"language\": \"Rust\",\n    \"packageManager\": \"cargo@1.78\",\n    \"startCommand\": \"./target/debug/app\"\n  },\n  \"plan\": [\n    {\n      \"step\": \"build\",\n      \"command\": \"cargo build\",\n      \"exitCode\": 0,\n      \"durationMs\": 28142\n    },\n    {\n      \"step\": \"run\",\n      \"command\": \"./target/debug/app\",\n      \"exitCode\": 139,\n      \"durationMs\": 240\n    }\n  ],\n  \"log\": [\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"bootproof: inspecting repository…\"\n    },\n    {\n      \"t\": 138,\n      \"level\": \"info\",\n      \"line\": \"  inferred language: Rust\"\n    },\n    {\n      \"t\": 201,\n      \"level\": \"info\",\n      \"line\": \"  inferred start command: ./target/debug/app\"\n    },\n    {\n      \"t\": 258,\n      \"level\": \"info\",\n      \"line\": \"  running: cargo build\"\n    },\n    {\n      \"t\": 28400,\n      \"level\": \"info\",\n      \"line\": \"  build succeeded (28.14s, exit 0)\"\n    },\n    {\n      \"t\": 28478,\n      \"level\": \"info\",\n      \"line\": \"  running: ./target/debug/app\"\n    },\n    {\n      \"t\": 28694,\n      \"level\": \"info\",\n      \"line\": \"  > initializing worker pool…\"\n    },\n    {\n      \"t\": 28705,\n      \"level\": \"info\",\n      \"line\": \"  > binding 0.0.0.0:8080…\"\n    },\n    {\n      \"t\": 28718,\n      \"level\": \"error\",\n      \"line\": \"  Segmentation fault (core dumped)\"\n    },\n    {\n      \"t\": 28718,\n      \"level\": \"error\",\n      \"line\": \"  process exited with signal SIGSEGV (code 139)\"\n    },\n    {\n      \"t\": 28718,\n      \"level\": \"fail\",\n      \"line\": \"NOT VERIFIED — process_segfault\"\n    }\n  ],\n  \"observed\": {\n    \"kind\": \"process_exit\",\n    \"signal\": \"SIGSEGV\",\n    \"code\": 139,\n    \"latencyMs\": 240\n  },\n  \"booted\": false,\n  \"healthVerified\": false,\n  \"failureClass\": \"process_segfault\"\n}","signature":"YGQsATcHvN/oEVMxpjPVUpnPSlnqPmvCep/DAuOnvgkg3HrT+1R0l6UbwZibfNaYm10sTA/QullXdfVur8L/Dg==","publicKey":"MCowBQYDK2VwAyEAJjedctxgRWNIWJwgXXx3M2/NHY2qWUIsAwrrGm0YZXU="}]</script>
+<!-- Inlined @noble/curves Ed25519 fallback bundle (30.7 KB minified).
+     Used only when native WebCrypto Ed25519 is unavailable. -->
+<script id="fallback-bundle">var BootProofFallback=(()=>{var Ot=Object.defineProperty;var We=Object.getOwnPropertyDescriptor;var Pe=Object.getOwnPropertyNames;var $e=Object.prototype.hasOwnProperty;var Qe=(t,e)=>{for(var n in e)Ot(t,n,{get:e[n],enumerable:!0})},Je=(t,e,n,r)=>{if(e&&typeof e=="object"||typeof e=="function")for(let o of Pe(e))!$e.call(t,o)&&o!==n&&Ot(t,o,{get:()=>e[o],enumerable:!(r=We(e,o))||r.enumerable});return t};var tn=t=>Je(Ot({},"__esModule",{value:!0}),t);var Dn={};Qe(Dn,{extractRawPubKeyFromSpki:()=>ze,verifyEd25519:()=>Rn});var nt=typeof globalThis=="object"&&"crypto"in globalThis?globalThis.crypto:void 0;function rt(t){return t instanceof Uint8Array||ArrayBuffer.isView(t)&&t.constructor.name==="Uint8Array"}function qt(t){if(!Number.isSafeInteger(t)||t<0)throw new Error("positive integer expected, got "+t)}function Z(t,...e){if(!rt(t))throw new Error("Uint8Array expected");if(e.length>0&&!e.includes(t.length))throw new Error("Uint8Array expected of length "+e+", got length="+t.length)}function Nt(t,e=!0){if(t.destroyed)throw new Error("Hash instance has been destroyed");if(e&&t.finished)throw new Error("Hash#digest() has already been called")}function ce(t,e){Z(t);let n=e.outputLen;if(t.length<n)throw new Error("digestInto() expects output buffer of length at least "+n)}function lt(...t){for(let e=0;e<t.length;e++)t[e].fill(0)}function Bt(t){return new DataView(t.buffer,t.byteOffset,t.byteLength)}var fe=typeof Uint8Array.from([]).toHex=="function"&&typeof Uint8Array.fromHex=="function",en=Array.from({length:256},(t,e)=>e.toString(16).padStart(2,"0"));function ot(t){if(Z(t),fe)return t.toHex();let e="";for(let n=0;n<t.length;n++)e+=en[t[n]];return e}var X={_0:48,_9:57,A:65,F:70,a:97,f:102};function ie(t){if(t>=X._0&&t<=X._9)return t-X._0;if(t>=X.A&&t<=X.F)return t-(X.A-10);if(t>=X.a&&t<=X.f)return t-(X.a-10)}function Et(t){if(typeof t!="string")throw new Error("hex string expected, got "+typeof t);if(fe)return Uint8Array.fromHex(t);let e=t.length,n=e/2;if(e%2)throw new Error("hex string expected, got unpadded hex of length "+e);let r=new Uint8Array(n);for(let o=0,s=0;o<n;o++,s+=2){let c=ie(t.charCodeAt(s)),a=ie(t.charCodeAt(s+1));if(c===void 0||a===void 0){let i=t[s]+t[s+1];throw new Error('hex string expected, got non-hex character "'+i+'" at index '+s)}r[o]=c*16+a}return r}function Ct(t){if(typeof t!="string")throw new Error("string expected");return new Uint8Array(new TextEncoder().encode(t))}function Mt(t){return typeof t=="string"&&(t=Ct(t)),Z(t),t}function ft(...t){let e=0;for(let r=0;r<t.length;r++){let o=t[r];Z(o),e+=o.length}let n=new Uint8Array(e);for(let r=0,o=0;r<t.length;r++){let s=t[r];n.set(s,o),o+=s.length}return n}var wt=class{};function ae(t){let e=r=>t().update(Mt(r)).digest(),n=t();return e.outputLen=n.outputLen,e.blockLen=n.blockLen,e.create=()=>t(),e}function Rt(t=32){if(nt&&typeof nt.getRandomValues=="function")return nt.getRandomValues(new Uint8Array(t));if(nt&&typeof nt.randomBytes=="function")return Uint8Array.from(nt.randomBytes(t));throw new Error("crypto.getRandomValues must be defined")}function nn(t,e,n,r){if(typeof t.setBigUint64=="function")return t.setBigUint64(e,n,r);let o=BigInt(32),s=BigInt(4294967295),c=Number(n>>o&s),a=Number(n&s),i=r?4:0,u=r?0:4;t.setUint32(e+i,c,r),t.setUint32(e+u,a,r)}var _t=class extends wt{constructor(e,n,r,o){super(),this.finished=!1,this.length=0,this.pos=0,this.destroyed=!1,this.blockLen=e,this.outputLen=n,this.padOffset=r,this.isLE=o,this.buffer=new Uint8Array(e),this.view=Bt(this.buffer)}update(e){Nt(this),e=Mt(e),Z(e);let{view:n,buffer:r,blockLen:o}=this,s=e.length;for(let c=0;c<s;){let a=Math.min(o-this.pos,s-c);if(a===o){let i=Bt(e);for(;o<=s-c;c+=o)this.process(i,c);continue}r.set(e.subarray(c,c+a),this.pos),this.pos+=a,c+=a,this.pos===o&&(this.process(n,0),this.pos=0)}return this.length+=e.length,this.roundClean(),this}digestInto(e){Nt(this),ce(e,this),this.finished=!0;let{buffer:n,view:r,blockLen:o,isLE:s}=this,{pos:c}=this;n[c++]=128,lt(this.buffer.subarray(c)),this.padOffset>o-c&&(this.process(r,0),c=0);for(let h=c;h<o;h++)n[h]=0;nn(r,o-8,BigInt(this.length*8),s),this.process(r,0);let a=Bt(e),i=this.outputLen;if(i%4)throw new Error("_sha2: outputLen should be aligned to 32bit");let u=i/4,p=this.get();if(u>p.length)throw new Error("_sha2: outputLen bigger than state");for(let h=0;h<u;h++)a.setUint32(4*h,p[h],s)}digest(){let{buffer:e,outputLen:n}=this;this.digestInto(e);let r=e.slice(0,n);return this.destroy(),r}_cloneInto(e){e||(e=new this.constructor),e.set(...this.get());let{blockLen:n,buffer:r,length:o,finished:s,destroyed:c,pos:a}=this;return e.destroyed=c,e.finished=s,e.length=o,e.pos=a,o%n&&e.buffer.set(r),e}clone(){return this._cloneInto()}};var N=Uint32Array.from([1779033703,4089235720,3144134277,2227873595,1013904242,4271175723,2773480762,1595750129,1359893119,2917565137,2600822924,725511199,528734635,4215389547,1541459225,327033209]);var St=BigInt(4294967295),ue=BigInt(32);function rn(t,e=!1){return e?{h:Number(t&St),l:Number(t>>ue&St)}:{h:Number(t>>ue&St)|0,l:Number(t&St)|0}}function le(t,e=!1){let n=t.length,r=new Uint32Array(n),o=new Uint32Array(n);for(let s=0;s<n;s++){let{h:c,l:a}=rn(t[s],e);[r[s],o[s]]=[c,a]}return[r,o]}var Dt=(t,e,n)=>t>>>n,Zt=(t,e,n)=>t<<32-n|e>>>n,st=(t,e,n)=>t>>>n|e<<32-n,it=(t,e,n)=>t<<32-n|e>>>n,dt=(t,e,n)=>t<<64-n|e>>>n-32,ht=(t,e,n)=>t>>>n-32|e<<64-n;function G(t,e,n,r){let o=(e>>>0)+(r>>>0);return{h:t+n+(o/2**32|0)|0,l:o|0}}var de=(t,e,n)=>(t>>>0)+(e>>>0)+(n>>>0),he=(t,e,n,r)=>e+n+r+(t/2**32|0)|0,xe=(t,e,n,r)=>(t>>>0)+(e>>>0)+(n>>>0)+(r>>>0),pe=(t,e,n,r,o)=>e+n+r+o+(t/2**32|0)|0,be=(t,e,n,r,o)=>(t>>>0)+(e>>>0)+(n>>>0)+(r>>>0)+(o>>>0),ge=(t,e,n,r,o,s)=>e+n+r+o+s+(t/2**32|0)|0;var me=le(["0x428a2f98d728ae22","0x7137449123ef65cd","0xb5c0fbcfec4d3b2f","0xe9b5dba58189dbbc","0x3956c25bf348b538","0x59f111f1b605d019","0x923f82a4af194f9b","0xab1c5ed5da6d8118","0xd807aa98a3030242","0x12835b0145706fbe","0x243185be4ee4b28c","0x550c7dc3d5ffb4e2","0x72be5d74f27b896f","0x80deb1fe3b1696b1","0x9bdc06a725c71235","0xc19bf174cf692694","0xe49b69c19ef14ad2","0xefbe4786384f25e3","0x0fc19dc68b8cd5b5","0x240ca1cc77ac9c65","0x2de92c6f592b0275","0x4a7484aa6ea6e483","0x5cb0a9dcbd41fbd4","0x76f988da831153b5","0x983e5152ee66dfab","0xa831c66d2db43210","0xb00327c898fb213f","0xbf597fc7beef0ee4","0xc6e00bf33da88fc2","0xd5a79147930aa725","0x06ca6351e003826f","0x142929670a0e6e70","0x27b70a8546d22ffc","0x2e1b21385c26c926","0x4d2c6dfc5ac42aed","0x53380d139d95b3df","0x650a73548baf63de","0x766a0abb3c77b2a8","0x81c2c92e47edaee6","0x92722c851482353b","0xa2bfe8a14cf10364","0xa81a664bbc423001","0xc24b8b70d0f89791","0xc76c51a30654be30","0xd192e819d6ef5218","0xd69906245565a910","0xf40e35855771202a","0x106aa07032bbd1b8","0x19a4c116b8d2d0c8","0x1e376c085141ab53","0x2748774cdf8eeb99","0x34b0bcb5e19b48a8","0x391c0cb3c5c95a63","0x4ed8aa4ae3418acb","0x5b9cca4f7763e373","0x682e6ff3d6b2b8a3","0x748f82ee5defb2fc","0x78a5636f43172f60","0x84c87814a1f0ab72","0x8cc702081a6439ec","0x90befffa23631e28","0xa4506cebde82bde9","0xbef9a3f7b2c67915","0xc67178f2e372532b","0xca273eceea26619c","0xd186b8c721c0c207","0xeada7dd6cde0eb1e","0xf57d4f7fee6ed178","0x06f067aa72176fba","0x0a637dc5a2c898a6","0x113f9804bef90dae","0x1b710b35131c471b","0x28db77f523047d84","0x32caab7b40c72493","0x3c9ebe0a15c9bebc","0x431d67c49c100d4c","0x4cc5d4becb3e42b6","0x597f299cfc657e2a","0x5fcb6fab3ad6faec","0x6c44198c4a475817"].map(t=>BigInt(t))),sn=me[0],cn=me[1],P=new Uint32Array(80),$=new Uint32Array(80),Vt=class extends _t{constructor(e=64){super(128,e,16,!1),this.Ah=N[0]|0,this.Al=N[1]|0,this.Bh=N[2]|0,this.Bl=N[3]|0,this.Ch=N[4]|0,this.Cl=N[5]|0,this.Dh=N[6]|0,this.Dl=N[7]|0,this.Eh=N[8]|0,this.El=N[9]|0,this.Fh=N[10]|0,this.Fl=N[11]|0,this.Gh=N[12]|0,this.Gl=N[13]|0,this.Hh=N[14]|0,this.Hl=N[15]|0}get(){let{Ah:e,Al:n,Bh:r,Bl:o,Ch:s,Cl:c,Dh:a,Dl:i,Eh:u,El:p,Fh:h,Fl:f,Gh:g,Gl:d,Hh:m,Hl:B}=this;return[e,n,r,o,s,c,a,i,u,p,h,f,g,d,m,B]}set(e,n,r,o,s,c,a,i,u,p,h,f,g,d,m,B){this.Ah=e|0,this.Al=n|0,this.Bh=r|0,this.Bl=o|0,this.Ch=s|0,this.Cl=c|0,this.Dh=a|0,this.Dl=i|0,this.Eh=u|0,this.El=p|0,this.Fh=h|0,this.Fl=f|0,this.Gh=g|0,this.Gl=d|0,this.Hh=m|0,this.Hl=B|0}process(e,n){for(let x=0;x<16;x++,n+=4)P[x]=e.getUint32(n),$[x]=e.getUint32(n+=4);for(let x=16;x<80;x++){let _=P[x-15]|0,A=$[x-15]|0,L=st(_,A,1)^st(_,A,8)^Dt(_,A,7),H=it(_,A,1)^it(_,A,8)^Zt(_,A,7),S=P[x-2]|0,b=$[x-2]|0,y=st(S,b,19)^dt(S,b,61)^Dt(S,b,6),E=it(S,b,19)^ht(S,b,61)^Zt(S,b,6),v=xe(H,E,$[x-7],$[x-16]),T=pe(v,L,y,P[x-7],P[x-16]);P[x]=T|0,$[x]=v|0}let{Ah:r,Al:o,Bh:s,Bl:c,Ch:a,Cl:i,Dh:u,Dl:p,Eh:h,El:f,Fh:g,Fl:d,Gh:m,Gl:B,Hh:l,Hl:w}=this;for(let x=0;x<80;x++){let _=st(h,f,14)^st(h,f,18)^dt(h,f,41),A=it(h,f,14)^it(h,f,18)^ht(h,f,41),L=h&g^~h&m,H=f&d^~f&B,S=be(w,A,H,cn[x],$[x]),b=ge(S,l,_,L,sn[x],P[x]),y=S|0,E=st(r,o,28)^dt(r,o,34)^dt(r,o,39),v=it(r,o,28)^ht(r,o,34)^ht(r,o,39),T=r&s^r&a^s&a,I=o&c^o&i^c&i;l=m|0,w=B|0,m=g|0,B=d|0,g=h|0,d=f|0,{h,l:f}=G(u|0,p|0,b|0,y|0),u=a|0,p=i|0,a=s|0,i=c|0,s=r|0,c=o|0;let O=de(y,v,I);r=he(O,b,E,T),o=O|0}({h:r,l:o}=G(this.Ah|0,this.Al|0,r|0,o|0)),{h:s,l:c}=G(this.Bh|0,this.Bl|0,s|0,c|0),{h:a,l:i}=G(this.Ch|0,this.Cl|0,a|0,i|0),{h:u,l:p}=G(this.Dh|0,this.Dl|0,u|0,p|0),{h,l:f}=G(this.Eh|0,this.El|0,h|0,f|0),{h:g,l:d}=G(this.Fh|0,this.Fl|0,g|0,d|0),{h:m,l:B}=G(this.Gh|0,this.Gl|0,m|0,B|0),{h:l,l:w}=G(this.Hh|0,this.Hl|0,l|0,w|0),this.set(r,o,s,c,a,i,u,p,h,f,g,d,m,B,l,w)}roundClean(){lt(P,$)}destroy(){lt(this.buffer),this.set(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)}};var ye=ae(()=>new Vt);var Xt=BigInt(0),jt=BigInt(1);function At(t,e=""){if(typeof t!="boolean"){let n=e&&`"${e}"`;throw new Error(n+"expected boolean, got type="+typeof t)}return t}function xt(t,e,n=""){let r=rt(t),o=t?.length,s=e!==void 0;if(!r||s&&o!==e){let c=n&&`"${n}" `,a=s?` of length ${e}`:"",i=r?`length=${o}`:`type=${typeof t}`;throw new Error(c+"expected Uint8Array"+a+", got "+i)}return t}function we(t){if(typeof t!="string")throw new Error("hex string expected, got "+typeof t);return t===""?Xt:BigInt("0x"+t)}function Be(t){return we(ot(t))}function Q(t){return Z(t),we(ot(Uint8Array.from(t).reverse()))}function Yt(t,e){return Et(t.toString(16).padStart(e*2,"0"))}function Ee(t,e){return Yt(t,e).reverse()}function D(t,e,n){let r;if(typeof e=="string")try{r=Et(e)}catch(s){throw new Error(t+" must be hex string or Uint8Array, cause: "+s)}else if(rt(e))r=Uint8Array.from(e);else throw new Error(t+" must be hex string or Uint8Array");let o=r.length;if(typeof n=="number"&&o!==n)throw new Error(t+" of length "+n+" expected, got "+o);return r}function _e(t,e){if(t.length!==e.length)return!1;let n=0;for(let r=0;r<t.length;r++)n|=t[r]^e[r];return n===0}function kt(t){return Uint8Array.from(t)}var Gt=t=>typeof t=="bigint"&&Xt<=t;function fn(t,e,n){return Gt(t)&&Gt(e)&&Gt(n)&&e<=t&&t<n}function Ft(t,e,n,r){if(!fn(e,n,r))throw new Error("expected valid "+t+": "+n+" <= n < "+r+", got "+e)}function Se(t){let e;for(e=0;t>Xt;t>>=jt,e+=1);return e}var pt=t=>(jt<<BigInt(t))-jt;function bt(t,e,n={}){if(!t||typeof t!="object")throw new Error("expected valid options object");function r(o,s,c){let a=t[o];if(c&&a===void 0)return;let i=typeof a;if(i!==s||a===null)throw new Error(`param "${o}" is invalid: expected ${s}, got ${i}`)}Object.entries(e).forEach(([o,s])=>r(o,s,!1)),Object.entries(n).forEach(([o,s])=>r(o,s,!0))}var Kt=()=>{throw new Error("not implemented")};function zt(t){let e=new WeakMap;return(n,...r)=>{let o=e.get(n);if(o!==void 0)return o;let s=t(n,...r);return e.set(n,s),s}}var M=BigInt(0),C=BigInt(1),ct=BigInt(2),Ie=BigInt(3),Te=BigInt(4),Le=BigInt(5),an=BigInt(7),He=BigInt(8),un=BigInt(9),Ue=BigInt(16);function U(t,e){let n=t%e;return n>=M?n:e+n}function V(t,e,n){let r=t;for(;e-- >M;)r*=r,r%=n;return r}function Ae(t,e){if(t===M)throw new Error("invert: expected non-zero number");if(e<=M)throw new Error("invert: expected positive modulus, got "+e);let n=U(t,e),r=e,o=M,s=C,c=C,a=M;for(;n!==M;){let u=r/n,p=r%n,h=o-c*u,f=s-a*u;r=n,n=p,o=c,s=a,c=h,a=f}if(r!==C)throw new Error("invert: does not exist");return U(o,e)}function Wt(t,e,n){if(!t.eql(t.sqr(e),n))throw new Error("Cannot find square root")}function Oe(t,e){let n=(t.ORDER+C)/Te,r=t.pow(e,n);return Wt(t,r,e),r}function ln(t,e){let n=(t.ORDER-Le)/He,r=t.mul(e,ct),o=t.pow(r,n),s=t.mul(e,o),c=t.mul(t.mul(s,ct),o),a=t.mul(s,t.sub(c,t.ONE));return Wt(t,a,e),a}function dn(t){let e=k(t),n=qe(t),r=n(e,e.neg(e.ONE)),o=n(e,r),s=n(e,e.neg(r)),c=(t+an)/Ue;return(a,i)=>{let u=a.pow(i,c),p=a.mul(u,r),h=a.mul(u,o),f=a.mul(u,s),g=a.eql(a.sqr(p),i),d=a.eql(a.sqr(h),i);u=a.cmov(u,p,g),p=a.cmov(f,h,d);let m=a.eql(a.sqr(p),i),B=a.cmov(u,p,m);return Wt(a,B,i),B}}function qe(t){if(t<Ie)throw new Error("sqrt is not defined for small field");let e=t-C,n=0;for(;e%ct===M;)e/=ct,n++;let r=ct,o=k(t);for(;ve(o,r)===1;)if(r++>1e3)throw new Error("Cannot find square root: probably non-prime P");if(n===1)return Oe;let s=o.pow(r,e),c=(e+C)/ct;return function(i,u){if(i.is0(u))return u;if(ve(i,u)!==1)throw new Error("Cannot find square root");let p=n,h=i.mul(i.ONE,s),f=i.pow(u,e),g=i.pow(u,c);for(;!i.eql(f,i.ONE);){if(i.is0(f))return i.ZERO;let d=1,m=i.sqr(f);for(;!i.eql(m,i.ONE);)if(d++,m=i.sqr(m),d===p)throw new Error("Cannot find square root");let B=C<<BigInt(p-d-1),l=i.pow(h,B);p=d,h=i.sqr(l),f=i.mul(f,h),g=i.mul(g,l)}return g}}function hn(t){return t%Te===Ie?Oe:t%He===Le?ln:t%Ue===un?dn(t):qe(t)}var Y=(t,e)=>(U(t,e)&C)===C,xn=["create","isValid","is0","neg","inv","sqrt","sqr","eql","add","sub","mul","pow","div","addN","subN","mulN","sqrN"];function Ne(t){let e={ORDER:"bigint",MASK:"bigint",BYTES:"number",BITS:"number"},n=xn.reduce((r,o)=>(r[o]="function",r),e);return bt(t,n),t}function pn(t,e,n){if(n<M)throw new Error("invalid exponent, negatives unsupported");if(n===M)return t.ONE;if(n===C)return e;let r=t.ONE,o=e;for(;n>M;)n&C&&(r=t.mul(r,o)),o=t.sqr(o),n>>=C;return r}function vt(t,e,n=!1){let r=new Array(e.length).fill(n?t.ZERO:void 0),o=e.reduce((c,a,i)=>t.is0(a)?c:(r[i]=c,t.mul(c,a)),t.ONE),s=t.inv(o);return e.reduceRight((c,a,i)=>t.is0(a)?c:(r[i]=t.mul(c,r[i]),t.mul(c,a)),s),r}function ve(t,e){let n=(t.ORDER-C)/ct,r=t.pow(e,n),o=t.eql(r,t.ONE),s=t.eql(r,t.ZERO),c=t.eql(r,t.neg(t.ONE));if(!o&&!s&&!c)throw new Error("invalid Legendre symbol result");return o?1:s?0:-1}function Ce(t,e){e!==void 0&&qt(e);let n=e!==void 0?e:t.toString(2).length,r=Math.ceil(n/8);return{nBitLength:n,nByteLength:r}}function k(t,e,n=!1,r={}){if(t<=M)throw new Error("invalid field: expected ORDER > 0, got "+t);let o,s,c=!1,a;if(typeof e=="object"&&e!=null){if(r.sqrt||n)throw new Error("cannot specify opts in two arguments");let f=e;f.BITS&&(o=f.BITS),f.sqrt&&(s=f.sqrt),typeof f.isLE=="boolean"&&(n=f.isLE),typeof f.modFromBytes=="boolean"&&(c=f.modFromBytes),a=f.allowedLengths}else typeof e=="number"&&(o=e),r.sqrt&&(s=r.sqrt);let{nBitLength:i,nByteLength:u}=Ce(t,o);if(u>2048)throw new Error("invalid field: expected ORDER of <= 2048 bytes");let p,h=Object.freeze({ORDER:t,isLE:n,BITS:i,BYTES:u,MASK:pt(i),ZERO:M,ONE:C,allowedLengths:a,create:f=>U(f,t),isValid:f=>{if(typeof f!="bigint")throw new Error("invalid field element: expected bigint, got "+typeof f);return M<=f&&f<t},is0:f=>f===M,isValidNot0:f=>!h.is0(f)&&h.isValid(f),isOdd:f=>(f&C)===C,neg:f=>U(-f,t),eql:(f,g)=>f===g,sqr:f=>U(f*f,t),add:(f,g)=>U(f+g,t),sub:(f,g)=>U(f-g,t),mul:(f,g)=>U(f*g,t),pow:(f,g)=>pn(h,f,g),div:(f,g)=>U(f*Ae(g,t),t),sqrN:f=>f*f,addN:(f,g)=>f+g,subN:(f,g)=>f-g,mulN:(f,g)=>f*g,inv:f=>Ae(f,t),sqrt:s||(f=>(p||(p=hn(t)),p(h,f))),toBytes:f=>n?Ee(f,u):Yt(f,u),fromBytes:(f,g=!0)=>{if(a){if(!a.includes(f.length)||f.length>u)throw new Error("Field.fromBytes: expected "+a+" bytes, got "+f.length);let m=new Uint8Array(u);m.set(f,n?0:m.length-f.length),f=m}if(f.length!==u)throw new Error("Field.fromBytes: expected "+u+" bytes, got "+f.length);let d=n?Q(f):Be(f);if(c&&(d=U(d,t)),!g&&!h.isValid(d))throw new Error("invalid field element: outside of range 0..ORDER");return d},invertBatch:f=>vt(h,f),cmov:(f,g,d)=>d?g:f});return Object.freeze(h)}var It=BigInt(0),Jt=BigInt(1);function Me(t,e){let n=e.negate();return t?n:e}function gt(t,e){let n=vt(t.Fp,e.map(r=>r.Z));return e.map((r,o)=>t.fromAffine(r.toAffine(n[o])))}function Ve(t,e){if(!Number.isSafeInteger(t)||t<=0||t>e)throw new Error("invalid window size, expected [1.."+e+"], got W="+t)}function Pt(t,e){Ve(t,e);let n=Math.ceil(e/t)+1,r=2**(t-1),o=2**t,s=pt(t),c=BigInt(t);return{windows:n,windowSize:r,mask:s,maxNumber:o,shiftBy:c}}function Re(t,e,n){let{windowSize:r,mask:o,maxNumber:s,shiftBy:c}=n,a=Number(t&o),i=t>>c;a>r&&(a-=s,i+=Jt);let u=e*r,p=u+Math.abs(a)-1,h=a===0,f=a<0,g=e%2!==0;return{nextN:i,offset:p,isZero:h,isNeg:f,isNegF:g,offsetF:u}}function bn(t,e){if(!Array.isArray(t))throw new Error("array expected");t.forEach((n,r)=>{if(!(n instanceof e))throw new Error("invalid point at index "+r)})}function gn(t,e){if(!Array.isArray(t))throw new Error("array of scalars expected");t.forEach((n,r)=>{if(!e.isValid(n))throw new Error("invalid scalar at index "+r)})}var $t=new WeakMap,Ge=new WeakMap;function Qt(t){return Ge.get(t)||1}function De(t){if(t!==It)throw new Error("invalid wNAF")}var Tt=class{constructor(e,n){this.BASE=e.BASE,this.ZERO=e.ZERO,this.Fn=e.Fn,this.bits=n}_unsafeLadder(e,n,r=this.ZERO){let o=e;for(;n>It;)n&Jt&&(r=r.add(o)),o=o.double(),n>>=Jt;return r}precomputeWindow(e,n){let{windows:r,windowSize:o}=Pt(n,this.bits),s=[],c=e,a=c;for(let i=0;i<r;i++){a=c,s.push(a);for(let u=1;u<o;u++)a=a.add(c),s.push(a);c=a.double()}return s}wNAF(e,n,r){if(!this.Fn.isValid(r))throw new Error("invalid scalar");let o=this.ZERO,s=this.BASE,c=Pt(e,this.bits);for(let a=0;a<c.windows;a++){let{nextN:i,offset:u,isZero:p,isNeg:h,isNegF:f,offsetF:g}=Re(r,a,c);r=i,p?s=s.add(Me(f,n[g])):o=o.add(Me(h,n[u]))}return De(r),{p:o,f:s}}wNAFUnsafe(e,n,r,o=this.ZERO){let s=Pt(e,this.bits);for(let c=0;c<s.windows&&r!==It;c++){let{nextN:a,offset:i,isZero:u,isNeg:p}=Re(r,c,s);if(r=a,!u){let h=n[i];o=o.add(p?h.negate():h)}}return De(r),o}getPrecomputes(e,n,r){let o=$t.get(n);return o||(o=this.precomputeWindow(n,e),e!==1&&(typeof r=="function"&&(o=r(o)),$t.set(n,o))),o}cached(e,n,r){let o=Qt(e);return this.wNAF(o,this.getPrecomputes(o,e,r),n)}unsafe(e,n,r,o){let s=Qt(e);return s===1?this._unsafeLadder(e,n,o):this.wNAFUnsafe(s,this.getPrecomputes(s,e,r),n,o)}createCache(e,n){Ve(n,this.bits),Ge.set(e,n),$t.delete(e)}hasCache(e){return Qt(e)!==1}};function Lt(t,e,n,r){bn(n,t),gn(r,e);let o=n.length,s=r.length;if(o!==s)throw new Error("arrays of points and scalars must have equal length");let c=t.ZERO,a=Se(BigInt(o)),i=1;a>12?i=a-3:a>4?i=a-2:a>0&&(i=2);let u=pt(i),p=new Array(Number(u)+1).fill(c),h=Math.floor((e.BITS-1)/i)*i,f=c;for(let g=h;g>=0;g-=i){p.fill(c);for(let m=0;m<s;m++){let B=r[m],l=Number(B>>BigInt(g)&u);p[l]=p[l].add(n[m])}let d=c;for(let m=p.length-1,B=c;m>0;m--)B=B.add(p[m]),d=d.add(B);if(f=f.add(d),g!==0)for(let m=0;m<i;m++)f=f.double()}return f}function Ze(t,e,n){if(e){if(e.ORDER!==t)throw new Error("Field.ORDER must match order: Fp == p, Fn == n");return Ne(e),e}else return k(t,{isLE:n})}function je(t,e,n={},r){if(r===void 0&&(r=t==="edwards"),!e||typeof e!="object")throw new Error(`expected valid ${t} CURVE object`);for(let i of["p","n","h"]){let u=e[i];if(!(typeof u=="bigint"&&u>It))throw new Error(`CURVE.${i} must be positive bigint`)}let o=Ze(e.p,n.Fp,r),s=Ze(e.n,n.Fn,r),a=["Gx","Gy","a",t==="weierstrass"?"b":"d"];for(let i of a)if(!o.isValid(e[i]))throw new Error(`CURVE.${i} must be valid field element of CURVE.Fp`);return e=Object.freeze(Object.assign({},e)),{CURVE:e,Fp:o,Fn:s}}var J=BigInt(0),q=BigInt(1),te=BigInt(2),mn=BigInt(8);function yn(t,e,n,r){let o=t.sqr(n),s=t.sqr(r),c=t.add(t.mul(e.a,o),s),a=t.add(t.ONE,t.mul(e.d,t.mul(o,s)));return t.eql(c,a)}function wn(t,e={}){let n=je("edwards",t,e,e.FpFnLE),{Fp:r,Fn:o}=n,s=n.CURVE,{h:c}=s;bt(e,{},{uvRatio:"function"});let a=te<<BigInt(o.BYTES*8)-q,i=B=>r.create(B),u=e.uvRatio||((B,l)=>{try{return{isValid:!0,value:r.sqrt(r.div(B,l))}}catch{return{isValid:!1,value:J}}});if(!yn(r,s,s.Gx,s.Gy))throw new Error("bad curve params: generator point");function p(B,l,w=!1){let x=w?q:J;return Ft("coordinate "+B,l,x,a),l}function h(B){if(!(B instanceof d))throw new Error("ExtendedPoint expected")}let f=zt((B,l)=>{let{X:w,Y:x,Z:_}=B,A=B.is0();l==null&&(l=A?mn:r.inv(_));let L=i(w*l),H=i(x*l),S=r.mul(_,l);if(A)return{x:J,y:q};if(S!==q)throw new Error("invZ was invalid");return{x:L,y:H}}),g=zt(B=>{let{a:l,d:w}=s;if(B.is0())throw new Error("bad point: ZERO");let{X:x,Y:_,Z:A,T:L}=B,H=i(x*x),S=i(_*_),b=i(A*A),y=i(b*b),E=i(H*l),v=i(b*i(E+S)),T=i(y+i(w*i(H*S)));if(v!==T)throw new Error("bad point: equation left != right (1)");let I=i(x*_),O=i(A*L);if(I!==O)throw new Error("bad point: equation left != right (2)");return!0});class d{constructor(l,w,x,_){this.X=p("x",l),this.Y=p("y",w),this.Z=p("z",x,!0),this.T=p("t",_),Object.freeze(this)}static CURVE(){return s}static fromAffine(l){if(l instanceof d)throw new Error("extended point not allowed");let{x:w,y:x}=l||{};return p("x",w),p("y",x),new d(w,x,q,i(w*x))}static fromBytes(l,w=!1){let x=r.BYTES,{a:_,d:A}=s;l=kt(xt(l,x,"point")),At(w,"zip215");let L=kt(l),H=l[x-1];L[x-1]=H&-129;let S=Q(L),b=w?a:r.ORDER;Ft("point.y",S,J,b);let y=i(S*S),E=i(y-q),v=i(A*y-_),{isValid:T,value:I}=u(E,v);if(!T)throw new Error("bad point: invalid y coordinate");let O=(I&q)===q,R=(H&128)!==0;if(!w&&I===J&&R)throw new Error("bad point: x=0 and x_0=1");return R!==O&&(I=i(-I)),d.fromAffine({x:I,y:S})}static fromHex(l,w=!1){return d.fromBytes(D("point",l),w)}get x(){return this.toAffine().x}get y(){return this.toAffine().y}precompute(l=8,w=!0){return m.createCache(this,l),w||this.multiply(te),this}assertValidity(){g(this)}equals(l){h(l);let{X:w,Y:x,Z:_}=this,{X:A,Y:L,Z:H}=l,S=i(w*H),b=i(A*_),y=i(x*H),E=i(L*_);return S===b&&y===E}is0(){return this.equals(d.ZERO)}negate(){return new d(i(-this.X),this.Y,this.Z,i(-this.T))}double(){let{a:l}=s,{X:w,Y:x,Z:_}=this,A=i(w*w),L=i(x*x),H=i(te*i(_*_)),S=i(l*A),b=w+x,y=i(i(b*b)-A-L),E=S+L,v=E-H,T=S-L,I=i(y*v),O=i(E*T),R=i(y*T),W=i(v*E);return new d(I,O,W,R)}add(l){h(l);let{a:w,d:x}=s,{X:_,Y:A,Z:L,T:H}=this,{X:S,Y:b,Z:y,T:E}=l,v=i(_*S),T=i(A*b),I=i(H*x*E),O=i(L*y),R=i((_+A)*(S+b)-v-T),W=O-I,et=O+I,j=i(T-w*v),ut=i(R*W),yt=i(et*j),Ut=i(R*j),se=i(W*et);return new d(ut,yt,se,Ut)}subtract(l){return this.add(l.negate())}multiply(l){if(!o.isValidNot0(l))throw new Error("invalid scalar: expected 1 <= sc < curve.n");let{p:w,f:x}=m.cached(this,l,_=>gt(d,_));return gt(d,[w,x])[0]}multiplyUnsafe(l,w=d.ZERO){if(!o.isValid(l))throw new Error("invalid scalar: expected 0 <= sc < curve.n");return l===J?d.ZERO:this.is0()||l===q?this:m.unsafe(this,l,x=>gt(d,x),w)}isSmallOrder(){return this.multiplyUnsafe(c).is0()}isTorsionFree(){return m.unsafe(this,s.n).is0()}toAffine(l){return f(this,l)}clearCofactor(){return c===q?this:this.multiplyUnsafe(c)}toBytes(){let{x:l,y:w}=this.toAffine(),x=r.toBytes(w);return x[x.length-1]|=l&q?128:0,x}toHex(){return ot(this.toBytes())}toString(){return`<Point ${this.is0()?"ZERO":this.toHex()}>`}get ex(){return this.X}get ey(){return this.Y}get ez(){return this.Z}get et(){return this.T}static normalizeZ(l){return gt(d,l)}static msm(l,w){return Lt(d,o,l,w)}_setWindowSize(l){this.precompute(l)}toRawBytes(){return this.toBytes()}}d.BASE=new d(s.Gx,s.Gy,q,i(s.Gx*s.Gy)),d.ZERO=new d(J,q,q,J),d.Fp=r,d.Fn=o;let m=new Tt(d,o.BITS);return d.BASE.precompute(8),d}var Ht=class{constructor(e){this.ep=e}static fromBytes(e){Kt()}static fromHex(e){Kt()}get x(){return this.toAffine().x}get y(){return this.toAffine().y}clearCofactor(){return this}assertValidity(){this.ep.assertValidity()}toAffine(e){return this.ep.toAffine(e)}toHex(){return ot(this.toBytes())}toString(){return this.toHex()}isTorsionFree(){return!0}isSmallOrder(){return!1}add(e){return this.assertSame(e),this.init(this.ep.add(e.ep))}subtract(e){return this.assertSame(e),this.init(this.ep.subtract(e.ep))}multiply(e){return this.init(this.ep.multiply(e))}multiplyUnsafe(e){return this.init(this.ep.multiplyUnsafe(e))}double(){return this.init(this.ep.double())}negate(){return this.init(this.ep.negate())}precompute(e,n){return this.init(this.ep.precompute(e,n))}toRawBytes(){return this.toBytes()}};function Bn(t,e,n={}){if(typeof e!="function")throw new Error('"hash" function param is required');bt(n,{},{adjustScalarBytes:"function",randomBytes:"function",domain:"function",prehash:"function",mapToCurve:"function"});let{prehash:r}=n,{BASE:o,Fp:s,Fn:c}=t,a=n.randomBytes||Rt,i=n.adjustScalarBytes||(b=>b),u=n.domain||((b,y,E)=>{if(At(E,"phflag"),y.length||E)throw new Error("Contexts/pre-hash are not supported");return b});function p(b){return c.create(Q(b))}function h(b){let y=x.secretKey;b=D("private key",b,y);let E=D("hashed private key",e(b),2*y),v=i(E.slice(0,y)),T=E.slice(y,2*y),I=p(v);return{head:v,prefix:T,scalar:I}}function f(b){let{head:y,prefix:E,scalar:v}=h(b),T=o.multiply(v),I=T.toBytes();return{head:y,prefix:E,scalar:v,point:T,pointBytes:I}}function g(b){return f(b).pointBytes}function d(b=Uint8Array.of(),...y){let E=ft(...y);return p(e(u(E,D("context",b),!!r)))}function m(b,y,E={}){b=D("message",b),r&&(b=r(b));let{prefix:v,scalar:T,pointBytes:I}=f(y),O=d(E.context,v,b),R=o.multiply(O).toBytes(),W=d(E.context,R,I,b),et=c.create(O+W*T);if(!c.isValid(et))throw new Error("sign failed: invalid s");let j=ft(R,c.toBytes(et));return xt(j,x.signature,"result")}let B={zip215:!0};function l(b,y,E,v=B){let{context:T,zip215:I}=v,O=x.signature;b=D("signature",b,O),y=D("message",y),E=D("publicKey",E,x.publicKey),I!==void 0&&At(I,"zip215"),r&&(y=r(y));let R=O/2,W=b.subarray(0,R),et=Q(b.subarray(R,O)),j,ut,yt;try{j=t.fromBytes(E,I),ut=t.fromBytes(W,I),yt=o.multiplyUnsafe(et)}catch{return!1}if(!I&&j.isSmallOrder())return!1;let Ut=d(T,ut.toBytes(),j.toBytes(),y);return ut.add(j.multiplyUnsafe(Ut)).subtract(yt).clearCofactor().is0()}let w=s.BYTES,x={secretKey:w,publicKey:w,signature:2*w,seed:w};function _(b=a(x.seed)){return xt(b,x.seed,"seed")}function A(b){let y=S.randomSecretKey(b);return{secretKey:y,publicKey:g(y)}}function L(b){return rt(b)&&b.length===c.BYTES}function H(b,y){try{return!!t.fromBytes(b,y)}catch{return!1}}let S={getExtendedPublicKey:f,randomSecretKey:_,isValidSecretKey:L,isValidPublicKey:H,toMontgomery(b){let{y}=t.fromBytes(b),E=x.publicKey,v=E===32;if(!v&&E!==57)throw new Error("only defined for 25519 and 448");let T=v?s.div(q+y,q-y):s.div(y-q,y+q);return s.toBytes(T)},toMontgomerySecret(b){let y=x.secretKey;xt(b,y);let E=e(b.subarray(0,y));return i(E).subarray(0,y)},randomPrivateKey:_,precompute(b=8,y=t.BASE){return y.precompute(b,!1)}};return Object.freeze({keygen:A,getPublicKey:g,sign:m,verify:l,utils:S,Point:t,lengths:x})}function En(t){let e={a:t.a,d:t.d,p:t.Fp.ORDER,n:t.n,h:t.h,Gx:t.Gx,Gy:t.Gy},n=t.Fp,r=k(e.n,t.nBitLength,!0),o={Fp:n,Fn:r,uvRatio:t.uvRatio},s={randomBytes:t.randomBytes,adjustScalarBytes:t.adjustScalarBytes,domain:t.domain,prehash:t.prehash,mapToCurve:t.mapToCurve};return{CURVE:e,curveOpts:o,hash:t.hash,eddsaOpts:s}}function _n(t,e){let n=e.Point;return Object.assign({},e,{ExtendedPoint:n,CURVE:t,nBitLength:n.Fn.BITS,nByteLength:n.Fn.BYTES})}function Xe(t){let{CURVE:e,curveOpts:n,hash:r,eddsaOpts:o}=En(t),s=wn(e,n),c=Bn(s,r,o);return _n(t,c)}var Sn=BigInt(0),F=BigInt(1),Ye=BigInt(2),Er=BigInt(3),An=BigInt(5),vn=BigInt(8),at=BigInt("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed"),mt={p:at,n:BigInt("0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed"),h:vn,a:BigInt("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffec"),d:BigInt("0x52036cee2b6ffe738cc740797779e89800700a4d4141d8ab75eb4dca135978a3"),Gx:BigInt("0x216936d3cd6e53fec0a4e231fdd6dc5c692cc7609525a7b2c9562d608f25d51a"),Gy:BigInt("0x6666666666666666666666666666666666666666666666666666666666666658")};function In(t){let e=BigInt(10),n=BigInt(20),r=BigInt(40),o=BigInt(80),s=at,a=t*t%s*t%s,i=V(a,Ye,s)*a%s,u=V(i,F,s)*t%s,p=V(u,An,s)*u%s,h=V(p,e,s)*p%s,f=V(h,n,s)*h%s,g=V(f,r,s)*f%s,d=V(g,o,s)*g%s,m=V(d,o,s)*g%s,B=V(m,e,s)*p%s;return{pow_p_5_8:V(B,Ye,s)*t%s,b2:a}}function Tn(t){return t[0]&=248,t[31]&=127,t[31]|=64,t}var ee=BigInt("19681161376707505956807079304988542015446066515923890162744021073123829784752");function oe(t,e){let n=at,r=U(e*e*e,n),o=U(r*r*e,n),s=In(t*o).pow_p_5_8,c=U(t*r*s,n),a=U(e*c*c,n),i=c,u=U(c*ee,n),p=a===t,h=a===U(-t,n),f=a===U(-t*ee,n);return p&&(c=i),(h||f)&&(c=u),Y(c,n)&&(c=U(-c,n)),{isValid:p||h,value:c}}var tt=k(mt.p,{isLE:!0}),Ln=k(mt.n,{isLE:!0}),Hn={...mt,Fp:tt,hash:ye,adjustScalarBytes:Tn,uvRatio:oe},K=Xe(Hn);var ne=ee,Un=BigInt("25063068953384623474111414158702152701244531502492656460079210482610430750235"),On=BigInt("54469307008909316920995813868745141605393597292927456921205312896311721017578"),qn=BigInt("1159843021668779879193775521855586647937357759715417654439879720876111806838"),Nn=BigInt("40440834346308536858101042469323190826248399146238708352240133220865137265952"),ke=t=>oe(F,t),Cn=BigInt("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),re=t=>K.Point.Fp.create(Q(t)&Cn);function Fe(t){let{d:e}=mt,n=at,r=l=>tt.create(l),o=r(ne*t*t),s=r((o+F)*qn),c=BigInt(-1),a=r((c-e*o)*r(o+e)),{isValid:i,value:u}=oe(s,a),p=r(u*t);Y(p,n)||(p=r(-p)),i||(u=p),i||(c=o);let h=r(c*(o-F)*Nn-a),f=u*u,g=r((u+u)*a),d=r(h*Un),m=r(F-f),B=r(F+f);return new K.Point(r(g*B),r(m*d),r(d*B),r(g*m))}function Mn(t){Z(t,64);let e=re(t.subarray(0,32)),n=Fe(e),r=re(t.subarray(32,64)),o=Fe(r);return new z(n.add(o))}var z=class t extends Ht{constructor(e){super(e)}static fromAffine(e){return new t(K.Point.fromAffine(e))}assertSame(e){if(!(e instanceof t))throw new Error("RistrettoPoint expected")}init(e){return new t(e)}static hashToCurve(e){return Mn(D("ristrettoHash",e,64))}static fromBytes(e){Z(e,32);let{a:n,d:r}=mt,o=at,s=_=>tt.create(_),c=re(e);if(!_e(tt.toBytes(c),e)||Y(c,o))throw new Error("invalid ristretto255 encoding 1");let a=s(c*c),i=s(F+n*a),u=s(F-n*a),p=s(i*i),h=s(u*u),f=s(n*r*p-h),{isValid:g,value:d}=ke(s(f*h)),m=s(d*u),B=s(d*m*f),l=s((c+c)*m);Y(l,o)&&(l=s(-l));let w=s(i*B),x=s(l*w);if(!g||Y(x,o)||w===Sn)throw new Error("invalid ristretto255 encoding 2");return new t(new K.Point(l,w,F,x))}static fromHex(e){return t.fromBytes(D("ristrettoHex",e,32))}static msm(e,n){return Lt(t,K.Point.Fn,e,n)}toBytes(){let{X:e,Y:n,Z:r,T:o}=this.ep,s=at,c=B=>tt.create(B),a=c(c(r+n)*c(r-n)),i=c(e*n),u=c(i*i),{value:p}=ke(c(a*u)),h=c(p*a),f=c(p*i),g=c(h*f*o),d;if(Y(o*g,s)){let B=c(n*ne),l=c(e*ne);e=B,n=l,d=c(h*On)}else d=f;Y(e*g,s)&&(n=c(-n));let m=c((r-n)*d);return Y(m,s)&&(m=c(-m)),tt.toBytes(m)}equals(e){this.assertSame(e);let{X:n,Y:r}=this.ep,{X:o,Y:s}=e.ep,c=u=>tt.create(u),a=c(n*s)===c(r*o),i=c(r*s)===c(n*o);return a||i}is0(){return this.equals(t.ZERO)}};z.BASE=new z(K.Point.BASE);z.ZERO=new z(K.Point.ZERO);z.Fp=tt;z.Fn=Ln;function ze(t){if(t.length<44)throw new Error("SPKI too short for Ed25519 key");return t.subarray(12,44)}function Rn(t,e,n){let r=Ke(t),o=ze(r),s=Ke(e);return K.verify(s,n,o)}function Ke(t){let e=atob(t),n=new Uint8Array(e.length);for(let r=0;r<e.length;r++)n[r]=e.charCodeAt(r);return n}return tn(Dn);})();
+/*! Bundled license information:
+
+@noble/hashes/esm/utils.js:
+  (*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) *)
+
+@noble/curves/esm/utils.js:
+@noble/curves/esm/abstract/modular.js:
+@noble/curves/esm/abstract/curve.js:
+@noble/curves/esm/abstract/edwards.js:
+@noble/curves/esm/ed25519.js:
+  (*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) *)
+*/
+</script>
+
+<script id="payload" type="application/json">[{"record":{"schema":"bootproof/record/v1","id":"rec_c0dd6371fda0","capturedAt":"2026-06-27T09:02:21.394Z","capturedBy":"bootproof-cli@0.3.0 (real-engine-mvp)","trust":{"level":"local_developer_signed","signer":"local_ed25519","oidc":null,"upgradePath":["local_developer_signed","ci_oidc_signed","neutral_runner_signed","transparency_logged"]},"repo":{"url":"file:///home/z/my-project/fixtures/real-booting-app","commit":"9796e10d298d","branch":"main","label":"real-booting-app"},"inference":{"language":"JavaScript / Node.js","packageManager":"npm","startCommand":"npm run start"},"plan":[{"step":"install","command":"npm install","exitCode":0,"durationMs":355},{"step":"start","command":"npm run start","exitCode":0,"signal":null,"durationMs":1840}],"log":[{"t":0,"level":"info","line":"bootproof: inspecting repository…"},{"t":0,"level":"info","line":"  inferred language: JavaScript / Node.js"},{"t":0,"level":"info","line":"  inferred package manager: npm"},{"t":0,"level":"info","line":"  inferred start command: npm run start"},{"t":0,"level":"info","line":"  candidate health port: 3000"},{"t":0,"level":"info","line":"  running: npm install"},{"t":347,"level":"info","line":"  up to date, audited 1 package in 263ms"},{"t":347,"level":"info","line":"  found 0 vulnerabilities"},{"t":355,"level":"info","line":"  install succeeded (0.35s, exit 0)"},{"t":355,"level":"info","line":"  running: npm run start"},{"t":500,"level":"info","line":"  > > real-booting-app@1.0.0 start"},{"t":500,"level":"info","line":"  > > node index.js"},{"t":536,"level":"info","line":"  > listening on http://127.0.0.1:3000"},{"t":1895,"level":"info","line":"  HTTP GET http://127.0.0.1:3000/ -> 200 (38 ms)"},{"t":1895,"level":"success","line":"BOOTED — observed HTTP 200 at http://127.0.0.1:3000/"}],"observed":{"kind":"http_response","url":"http://127.0.0.1:3000/","status":200,"latencyMs":38,"body":"OK\n"},"booted":true,"healthVerified":true,"failureClass":null},"message":"{\n  \"schema\": \"bootproof/record/v1\",\n  \"id\": \"rec_c0dd6371fda0\",\n  \"capturedAt\": \"2026-06-27T09:02:21.394Z\",\n  \"capturedBy\": \"bootproof-cli@0.3.0 (real-engine-mvp)\",\n  \"trust\": {\n    \"level\": \"local_developer_signed\",\n    \"signer\": \"local_ed25519\",\n    \"oidc\": null,\n    \"upgradePath\": [\n      \"local_developer_signed\",\n      \"ci_oidc_signed\",\n      \"neutral_runner_signed\",\n      \"transparency_logged\"\n    ]\n  },\n  \"repo\": {\n    \"url\": \"file:///home/z/my-project/fixtures/real-booting-app\",\n    \"commit\": \"9796e10d298d\",\n    \"branch\": \"main\",\n    \"label\": \"real-booting-app\"\n  },\n  \"inference\": {\n    \"language\": \"JavaScript / Node.js\",\n    \"packageManager\": \"npm\",\n    \"startCommand\": \"npm run start\"\n  },\n  \"plan\": [\n    {\n      \"step\": \"install\",\n      \"command\": \"npm install\",\n      \"exitCode\": 0,\n      \"durationMs\": 355\n    },\n    {\n      \"step\": \"start\",\n      \"command\": \"npm run start\",\n      \"exitCode\": 0,\n      \"signal\": null,\n      \"durationMs\": 1840\n    }\n  ],\n  \"log\": [\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"bootproof: inspecting repository…\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  inferred language: JavaScript / Node.js\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  inferred package manager: npm\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  inferred start command: npm run start\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  candidate health port: 3000\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  running: npm install\"\n    },\n    {\n      \"t\": 347,\n      \"level\": \"info\",\n      \"line\": \"  up to date, audited 1 package in 263ms\"\n    },\n    {\n      \"t\": 347,\n      \"level\": \"info\",\n      \"line\": \"  found 0 vulnerabilities\"\n    },\n    {\n      \"t\": 355,\n      \"level\": \"info\",\n      \"line\": \"  install succeeded (0.35s, exit 0)\"\n    },\n    {\n      \"t\": 355,\n      \"level\": \"info\",\n      \"line\": \"  running: npm run start\"\n    },\n    {\n      \"t\": 500,\n      \"level\": \"info\",\n      \"line\": \"  > > real-booting-app@1.0.0 start\"\n    },\n    {\n      \"t\": 500,\n      \"level\": \"info\",\n      \"line\": \"  > > node index.js\"\n    },\n    {\n      \"t\": 536,\n      \"level\": \"info\",\n      \"line\": \"  > listening on http://127.0.0.1:3000\"\n    },\n    {\n      \"t\": 1895,\n      \"level\": \"info\",\n      \"line\": \"  HTTP GET http://127.0.0.1:3000/ -> 200 (38 ms)\"\n    },\n    {\n      \"t\": 1895,\n      \"level\": \"success\",\n      \"line\": \"BOOTED — observed HTTP 200 at http://127.0.0.1:3000/\"\n    }\n  ],\n  \"observed\": {\n    \"kind\": \"http_response\",\n    \"url\": \"http://127.0.0.1:3000/\",\n    \"status\": 200,\n    \"latencyMs\": 38,\n    \"body\": \"OK\\n\"\n  },\n  \"booted\": true,\n  \"healthVerified\": true,\n  \"failureClass\": null\n}","signature":"GJcssxIEtcD15Zr7Bq29JGpxP7Ry61bYbv1H6fmdQd3MUF6wZH3I53HkVRVn4MhE8GLfk0giWgeA296BmvYlBQ==","publicKey":"MCowBQYDK2VwAyEAwkDLhMzXh/qNCqc/QUW3NFyklnsjeQs1TqI5Rg/galE="},{"record":{"schema":"bootproof/record/v1","id":"rec_d59e3159f054","capturedAt":"2026-06-27T09:03:08.779Z","capturedBy":"bootproof-cli@0.3.0 (real-engine-mvp)","trust":{"level":"local_developer_signed","signer":"local_ed25519","oidc":null,"upgradePath":["local_developer_signed","ci_oidc_signed","neutral_runner_signed","transparency_logged"]},"repo":{"url":"file:///home/z/my-project/fixtures/real-slop-app","commit":"9796e10d298d","branch":"main","label":"real-slop-app"},"inference":{"language":"JavaScript / Node.js","packageManager":"npm","startCommand":"npm run start"},"plan":[{"step":"install","command":"npm install","exitCode":0,"durationMs":471},{"step":"start","command":"npm run start","exitCode":139,"signal":"SIGSEGV","durationMs":1503}],"log":[{"t":0,"level":"info","line":"bootproof: inspecting repository…"},{"t":0,"level":"info","line":"  inferred language: JavaScript / Node.js"},{"t":0,"level":"info","line":"  inferred package manager: npm"},{"t":0,"level":"info","line":"  inferred start command: npm run start"},{"t":0,"level":"info","line":"  candidate health port: 3000"},{"t":0,"level":"info","line":"  running: npm install"},{"t":461,"level":"info","line":"  up to date, audited 1 package in 368ms"},{"t":462,"level":"info","line":"  found 0 vulnerabilities"},{"t":471,"level":"info","line":"  install succeeded (0.47s, exit 0)"},{"t":471,"level":"info","line":"  running: npm run start"},{"t":607,"level":"info","line":"  > > real-slop-app@1.0.0 start"},{"t":607,"level":"info","line":"  > > node index.js"},{"t":642,"level":"info","line":"  > initializing worker pool..."},{"t":643,"level":"info","line":"  > binding 0.0.0.0:3000..."},{"t":844,"level":"info","line":"  > accepting connections..."},{"t":845,"level":"info","line":"  > Segmentation fault"},{"t":1974,"level":"error","line":"  process exited with code 139 signal SIGSEGV"},{"t":1974,"level":"fail","line":"NOT VERIFIED — process_segfault"}],"observed":{"kind":"process_exit","signal":"SIGSEGV","code":139,"latencyMs":1503},"booted":false,"healthVerified":false,"failureClass":"process_segfault"},"message":"{\n  \"schema\": \"bootproof/record/v1\",\n  \"id\": \"rec_d59e3159f054\",\n  \"capturedAt\": \"2026-06-27T09:03:08.779Z\",\n  \"capturedBy\": \"bootproof-cli@0.3.0 (real-engine-mvp)\",\n  \"trust\": {\n    \"level\": \"local_developer_signed\",\n    \"signer\": \"local_ed25519\",\n    \"oidc\": null,\n    \"upgradePath\": [\n      \"local_developer_signed\",\n      \"ci_oidc_signed\",\n      \"neutral_runner_signed\",\n      \"transparency_logged\"\n    ]\n  },\n  \"repo\": {\n    \"url\": \"file:///home/z/my-project/fixtures/real-slop-app\",\n    \"commit\": \"9796e10d298d\",\n    \"branch\": \"main\",\n    \"label\": \"real-slop-app\"\n  },\n  \"inference\": {\n    \"language\": \"JavaScript / Node.js\",\n    \"packageManager\": \"npm\",\n    \"startCommand\": \"npm run start\"\n  },\n  \"plan\": [\n    {\n      \"step\": \"install\",\n      \"command\": \"npm install\",\n      \"exitCode\": 0,\n      \"durationMs\": 471\n    },\n    {\n      \"step\": \"start\",\n      \"command\": \"npm run start\",\n      \"exitCode\": 139,\n      \"signal\": \"SIGSEGV\",\n      \"durationMs\": 1503\n    }\n  ],\n  \"log\": [\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"bootproof: inspecting repository…\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  inferred language: JavaScript / Node.js\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  inferred package manager: npm\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  inferred start command: npm run start\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  candidate health port: 3000\"\n    },\n    {\n      \"t\": 0,\n      \"level\": \"info\",\n      \"line\": \"  running: npm install\"\n    },\n    {\n      \"t\": 461,\n      \"level\": \"info\",\n      \"line\": \"  up to date, audited 1 package in 368ms\"\n    },\n    {\n      \"t\": 462,\n      \"level\": \"info\",\n      \"line\": \"  found 0 vulnerabilities\"\n    },\n    {\n      \"t\": 471,\n      \"level\": \"info\",\n      \"line\": \"  install succeeded (0.47s, exit 0)\"\n    },\n    {\n      \"t\": 471,\n      \"level\": \"info\",\n      \"line\": \"  running: npm run start\"\n    },\n    {\n      \"t\": 607,\n      \"level\": \"info\",\n      \"line\": \"  > > real-slop-app@1.0.0 start\"\n    },\n    {\n      \"t\": 607,\n      \"level\": \"info\",\n      \"line\": \"  > > node index.js\"\n    },\n    {\n      \"t\": 642,\n      \"level\": \"info\",\n      \"line\": \"  > initializing worker pool...\"\n    },\n    {\n      \"t\": 643,\n      \"level\": \"info\",\n      \"line\": \"  > binding 0.0.0.0:3000...\"\n    },\n    {\n      \"t\": 844,\n      \"level\": \"info\",\n      \"line\": \"  > accepting connections...\"\n    },\n    {\n      \"t\": 845,\n      \"level\": \"info\",\n      \"line\": \"  > Segmentation fault\"\n    },\n    {\n      \"t\": 1974,\n      \"level\": \"error\",\n      \"line\": \"  process exited with code 139 signal SIGSEGV\"\n    },\n    {\n      \"t\": 1974,\n      \"level\": \"fail\",\n      \"line\": \"NOT VERIFIED — process_segfault\"\n    }\n  ],\n  \"observed\": {\n    \"kind\": \"process_exit\",\n    \"signal\": \"SIGSEGV\",\n    \"code\": 139,\n    \"latencyMs\": 1503\n  },\n  \"booted\": false,\n  \"healthVerified\": false,\n  \"failureClass\": \"process_segfault\"\n}","signature":"iGroTJewAgMdEuDhYoFkVEZAwYFwvsAakWK0eyt/XRcx8GvoJOuXj0OWuQ1A+sa6Oh7DxvSKlyuv1bB9SW5/Cw==","publicKey":"MCowBQYDK2VwAyEAwkDLhMzXh/qNCqc/QUW3NFyklnsjeQs1TqI5Rg/galE="}]</script>
 <script>
 (function () {
   'use strict';
 
   var PAYLOAD = JSON.parse(document.getElementById('payload').textContent);
   var encoder = new TextEncoder();
+  var nativeEd25519Available = null; // null = unknown, true/false after probe
 
   function b64ToBytes(s) {
     var bin = atob(s);
@@ -300,25 +332,67 @@
     return arr;
   }
 
+  // Probe whether the browser supports native Ed25519 in WebCrypto.
+  // Done once, lazily. Throws on unsupported browsers.
+  async function probeNativeEd25519() {
+    if (nativeEd25519Available !== null) return nativeEd25519Available;
+    try {
+      // Generate a throwaway key to test algorithm support.
+      var k = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);
+      await crypto.subtle.exportKey('raw', k.publicKey);
+      nativeEd25519Available = true;
+    } catch (e) {
+      nativeEd25519Available = false;
+    }
+    return nativeEd25519Available;
+  }
+
   async function importKey(spkiB64) {
     return crypto.subtle.importKey('spki', b64ToBytes(spkiB64), { name: 'Ed25519' }, false, ['verify']);
   }
 
+  async function verifyNative(entry, messageOverride) {
+    var key = await importKey(entry.publicKey);
+    var msg = messageOverride != null ? messageOverride : entry.message;
+    return await crypto.subtle.verify('Ed25519', key, b64ToBytes(entry.signature), encoder.encode(msg));
+  }
+
+  function verifyFallback(entry, messageOverride) {
+    if (!window.BootProofFallback || typeof window.BootProofFallback.verifyEd25519 !== 'function') {
+      throw new Error('fallback bundle missing');
+    }
+    var msg = messageOverride != null ? messageOverride : entry.message;
+    var msgBytes = encoder.encode(msg);
+    return window.BootProofFallback.verifyEd25519(entry.publicKey, entry.signature, msgBytes);
+  }
+
   async function verifyOne(entry, messageOverride) {
     var t0 = (performance && performance.now) ? performance.now() : Date.now();
+    var ok, mode;
     try {
-      var key = await importKey(entry.publicKey);
-      var msg = messageOverride != null ? messageOverride : entry.message;
-      var ok = await crypto.subtle.verify('Ed25519', key, b64ToBytes(entry.signature), encoder.encode(msg));
-      var t1 = (performance && performance.now) ? performance.now() : Date.now();
-      return { ok: ok, ms: t1 - t0 };
+      var hasNative = await probeNativeEd25519();
+      if (hasNative) {
+        ok = await verifyNative(entry, messageOverride);
+        mode = 'webcrypto-ed25519';
+      } else {
+        ok = verifyFallback(entry, messageOverride);
+        mode = 'noble-fallback';
+      }
     } catch (e) {
-      return { ok: false, ms: 0, error: e.message };
+      // If native throws unexpectedly, try fallback before giving up.
+      try {
+        ok = verifyFallback(entry, messageOverride);
+        mode = 'noble-fallback-after-throw';
+      } catch (e2) {
+        ok = false;
+        mode = 'error:' + e2.message;
+      }
     }
+    var t1 = (performance && performance.now) ? performance.now() : Date.now();
+    return { ok: ok, ms: t1 - t0, mode: mode };
   }
 
   function tamperMessage(msg) {
-    // Flip one alphanumeric character near the middle. Avoids JSON structural chars.
     var arr = Array.from(msg);
     var mid = Math.floor(arr.length / 2);
     for (var i = mid; i < arr.length; i++) {
@@ -333,7 +407,6 @@
   }
 
   function compressTimeline(log) {
-    // Compress gaps > 700ms so a 28-second build still replays in seconds.
     var lastT = 0;
     return log.map(function (e) {
       var gap = e.t - lastT;
@@ -350,9 +423,7 @@
     return e;
   }
 
-  // ---- stamp factories ------------------------------------------------------
-  // sigState: 'ok' | 'bad' | 'pending'
-  function sigStamp(sigState, msText) {
+  function sigStamp(sigState, msText, mode) {
     var s = el('span', 'stamp');
     var glyph = el('span', 'glyph');
     var label = '';
@@ -371,28 +442,26 @@
     }
     s.appendChild(glyph);
     s.appendChild(document.createTextNode(' ' + label));
-    if (msText) {
-      var small = el('span', '', ' (' + msText + ')');
-      small.style.color = 'var(--graphite)';
-      small.style.fontWeight = '400';
-      small.style.textTransform = 'none';
-      s.appendChild(small);
+    if (msText || mode) {
+      var bits = [];
+      if (msText) bits.push(msText);
+      if (mode && mode !== 'webcrypto-ed25519') bits.push(mode);
+      if (bits.length) {
+        var small = el('span', '', ' (' + bits.join(' · ') + ')');
+        small.style.color = 'var(--graphite)';
+        small.style.fontWeight = '400';
+        small.style.textTransform = 'none';
+        s.appendChild(small);
+      }
     }
     return s;
   }
 
-  // bootState reflects what the receipt CLAIMS.
-  // sigState gates whether the claim is trusted.
-  //   sigState === 'ok'      -> show the claim normally
-  //   sigState === 'pending' -> show the claim but as pending
-  //   sigState === 'bad'     -> show VERDICT UNVERIFIED (hedge/amber), never the claim
   function bootStamp(record, sigState) {
     var s = el('span', 'stamp');
     var glyph = el('span', 'glyph');
     var label = '';
     if (sigState === 'bad') {
-      // Cryptographic honesty: a tampered signature means NO claim inside
-      // the receipt can be trusted — including the boot verdict.
       s.className += ' v-diag';
       glyph.textContent = '!';
       label = 'VERDICT UNVERIFIED \u2014 SIGNATURE INVALID';
@@ -431,7 +500,9 @@
     var head = el('header', 'r-head');
     var repoLine = el('div', 'repo-line');
     repoLine.appendChild(el('span', 'label', 'repo'));
-    repoLine.appendChild(el('span', 'url', record.repo.url));
+    var repoUrl = record.repo.url;
+    var repoLabel = record.repo.label ? record.repo.label + '  ' : '';
+    repoLine.appendChild(el('span', 'url', repoLabel + repoUrl));
     head.appendChild(repoLine);
 
     var metaLine1 = el('div', 'meta-line');
@@ -439,13 +510,15 @@
       '  captured ' + record.capturedAt + '  by ' + record.capturedBy;
     head.appendChild(metaLine1);
 
-    var metaLine2 = el('div', 'meta-line');
-    metaLine2.textContent = 'inference: ' + record.inference.language + ' / ' + record.inference.packageManager +
-      '  start: ' + record.inference.startCommand;
-    head.appendChild(metaLine2);
+    if (record.inference) {
+      var metaLine2 = el('div', 'meta-line');
+      metaLine2.textContent = 'inference: ' + record.inference.language + ' / ' + record.inference.packageManager +
+        '  start: ' + record.inference.startCommand;
+      head.appendChild(metaLine2);
+    }
 
     var stamps = el('div', 'stamps');
-    var sigS = sigStamp('pending', null);
+    var sigS = sigStamp('pending', null, null);
     sigS.dataset.role = 'sig';
     stamps.appendChild(sigS);
     var bootS = bootStamp(record, 'pending');
@@ -461,12 +534,18 @@
       kv.appendChild(el('div', 'k', k));
       kv.appendChild(el('div', 'v', v));
     }
-    var observed = record.observed;
+    var observed = record.observed || {};
     var observedStr;
     if (observed.kind === 'http_response') {
       observedStr = 'HTTP ' + observed.status + ' ' + observed.url + ' (' + observed.latencyMs + ' ms) body=' + JSON.stringify(observed.body);
+    } else if (observed.kind === 'process_exit') {
+      observedStr = 'process exited signal=' + (observed.signal || 'null') + ' code=' + observed.code + ' (' + observed.latencyMs + ' ms)';
+    } else if (observed.kind === 'install_failure') {
+      observedStr = 'install step failed (exit ' + observed.exitCode + ')';
+    } else if (observed.kind === 'health_timeout') {
+      observedStr = 'no HTTP response within ' + (observed.windowMs / 1000) + 's window at ' + observed.url;
     } else {
-      observedStr = 'process exited signal=' + observed.signal + ' code=' + observed.code + ' (' + observed.latencyMs + ' ms)';
+      observedStr = JSON.stringify(observed);
     }
     kvRow('booted', String(record.booted));
     kvRow('healthVerified', String(record.healthVerified));
@@ -474,6 +553,9 @@
     kvRow('observed', observedStr);
     kvRow('trust.level', record.trust.level);
     kvRow('trust.signer', record.trust.signer);
+    if (record.trust.upgradePath) {
+      kvRow('trust.upgradePath', record.trust.upgradePath.join(' → '));
+    }
     body.appendChild(kv);
 
     var term = el('div', 'term idle');
@@ -513,10 +595,9 @@
 
     card.appendChild(body);
 
-    // --- State ---------------------------------------------------------------
     var state = {
       message: entry.message,
-      sigState: 'pending',     // 'pending' | 'ok' | 'bad'
+      sigState: 'pending',
       replaying: false,
       lastReplayTimers: []
     };
@@ -524,21 +605,17 @@
     replayBtn.addEventListener('click', function () { startReplay(); });
     tamperBtn.addEventListener('click', function () { toggleTamper(); });
 
-    function setSigStamp(newState, msText) {
+    function setSigStamp(newState, msText, mode) {
       state.sigState = newState;
-      var fresh = sigStamp(newState, msText);
+      var fresh = sigStamp(newState, msText, mode);
       fresh.dataset.role = 'sig';
       var old = stamps.querySelector('[data-role="sig"]');
       old.parentNode.replaceChild(fresh, old);
-      // Boot stamp depends on sig state — refresh it too.
       refreshBootStamp();
-      // Card border reflects tamper state.
       if (newState === 'bad') card.classList.add('tampered');
       else card.classList.remove('tampered');
-      // Banner reflects tamper state.
       if (newState === 'bad') banner.classList.add('show');
       else banner.classList.remove('show');
-      // Button label reflects tamper state.
       if (newState === 'bad') {
         tamperBtn.textContent = 'Restore original';
         tamperBtn.className = 'ghost';
@@ -556,21 +633,19 @@
     }
 
     async function reverify() {
-      setSigStamp('pending', null);
+      setSigStamp('pending', null, null);
       var result = await verifyOne(entry, state.message);
       var msText = result.ms ? result.ms.toFixed(1) + ' ms' : null;
-      setSigStamp(result.ok ? 'ok' : 'bad', msText);
+      setSigStamp(result.ok ? 'ok' : 'bad', msText, result.mode);
       updateStatusBar();
     }
 
     function toggleTamper() {
       if (state.sigState === 'bad') {
-        // Restore
         state.message = entry.message;
         var sm = sigDetails.querySelector('[data-role="signedMessage"]');
         sm.textContent = entry.message;
       } else {
-        // Tamper
         state.message = tamperMessage(entry.message);
         var sm2 = sigDetails.querySelector('[data-role="signedMessage"]');
         sm2.textContent = state.message;
@@ -615,10 +690,12 @@
   function updateStatusBar() {
     var stamps = document.querySelectorAll('.receipt .stamp[data-role="sig"]');
     var ok = 0, bad = 0, pending = 0;
+    var anyFallback = false;
     stamps.forEach(function (s) {
       if (s.classList.contains('v-boots')) ok++;
       else if (s.classList.contains('v-refused')) bad++;
       else pending++;
+      if (/noble|fallback/i.test(s.textContent)) anyFallback = true;
     });
     var bar = document.getElementById('statusBar');
     var text = document.getElementById('statusText');
@@ -630,7 +707,8 @@
       text.textContent = bad + ' of ' + stamps.length + ' signature(s) TAMPERED \u2014 ' + ok + ' verified. No verdict in a tampered receipt can be trusted.';
     } else {
       bar.className = 'status-bar ok';
-      text.textContent = ok + ' of ' + stamps.length + ' signature(s) verified in your browser. No network calls were made.';
+      var modeNote = anyFallback ? ' (JS fallback)' : '';
+      text.textContent = ok + ' of ' + stamps.length + ' signature(s) verified in your browser' + modeNote + '. No network calls were made.';
     }
   }
 

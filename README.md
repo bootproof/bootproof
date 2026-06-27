@@ -32,17 +32,39 @@ AI coding agents can suggest commands, but they should not be trusted to declare
 
 Attestations are JSON. That is the right shape for machines and CI, but it is the wrong shape for a human you are trying to convince. The Living Receipt is the same evidence, rendered as a **single self-contained HTML file** you can email, attach, or link from a README badge.
 
-Open it anywhere — no install, no network, no account — and three things happen in your browser, with zero external calls:
+The two receipts in the demo below are **not mock data**. They are real captures from a real `bootproof up` run against two real local repositories — one that boots to a real HTTP 200, and one that installs clean and then segfaults at runtime. The signature, the boot logs, and the observed HTTP response are all real captured evidence, signed with ed25519 and embedded in the file.
 
-1. **It re-verifies its own ed25519 signature** using Web Crypto. The signed message, the signature, and the public key are all embedded inline.
-2. **It replays the actual boot** — the inferred plan, the commands, the log timeline, the observed HTTP response (or the classified failure) — streaming in an embedded terminal.
+Open it anywhere — no install, no network, no account — and four things happen in your browser, with zero external calls:
+
+1. **It re-verifies its own ed25519 signature.** The signed message, the signature, and the public key are all embedded inline. Native WebCrypto Ed25519 is used in Chrome 137+, Firefox, and Safari; on older browsers (~20% of users) the receipt automatically falls back to a pure-JS `@noble/curves` verifier bundled inline. The receipt never fails to verify silently.
+2. **It replays the actual boot** — the inferred plan, the real commands that ran, the real captured log timeline, the real observed HTTP response (or the real classified failure) — streaming in an embedded terminal.
 3. **If a single byte of the signed message is altered, the verdict collapses with the signature.** The boot stamp flips to `VERDICT UNVERIFIED — SIGNATURE INVALID`, because no claim inside a tampered receipt can be trusted. That is the whole point of the product: a green check that survives tampering would defeat the entire premise.
+4. **The trust ladder is documented in the artifact itself.** This receipt is signed at the `local_developer_signed` level — it proves integrity-since-signing, not that the signer's machine was honest. The documented upgrade path is `local_developer_signed` → `ci_oidc_signed` → `neutral_runner_signed` → `transparency_logged`. The same file format and the same wow experience survive every step up the ladder; only the signer's identity climbs.
 
 Try it now — download [`assets/living-receipt.html`](assets/living-receipt.html), double-click it, and click **Tamper with signature** to watch the verdict collapse.
 
 <p align="center">
-  <a href="assets/living-receipt.html"><img src="https://img.shields.io/badge/open%20the%20Living%20Receipt-%E2%9C%93%20self--verifying%20HTML-0E9D5B?style=flat-square&labelColor=16181D" alt="Open the Living Receipt"></a>
+  <a href="assets/living-receipt.html"><img src="https://img.shields.io/badge/open%20the%20Living%20Receipt-%E2%9C%93%20real%20capture%20%C2%B7%20self--verifying-0E9D5B?style=flat-square&labelColor=16181D" alt="Open the Living Receipt"></a>
 </p>
+
+**Reproduce the capture.** The engine that produced these real receipts ships in this repo:
+
+```bash
+# Boot the real fixture that boots to HTTP 200
+node scripts/bootproof_up.mjs fixtures/real-booting-app --label "real-booting-app"
+
+# Boot the real fixture that segfaults at runtime
+node scripts/bootproof_up.mjs fixtures/real-slop-app --label "real-slop-app"
+
+# Regenerate the Living Receipt HTML from those real captures
+node scripts/build_living_receipt.mjs \
+  scripts/records/real-booting-app.json \
+  scripts/records/real-slop-app.json \
+  --out assets/living-receipt.html
+
+# Run the smoke test (verifies both native and fallback paths)
+node scripts/verify_living_receipt.mjs
+```
 
 **What this proves:** the receipt is not a description of a product — it *is* the product, and it runs the moment you open it. It works offline, survives being forwarded, and cannot be forged without breaking the signature. A platform-issued green check dies the moment you leave the platform. A Living Receipt travels.
 

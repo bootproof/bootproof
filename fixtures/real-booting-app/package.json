@@ -1,0 +1,10 @@
+{
+  "name": "real-booting-app",
+  "version": "1.0.0",
+  "description": "A tiny, real Node.js HTTP server. BootProof will actually boot this and observe HTTP 200.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "license": "MIT"
+}
