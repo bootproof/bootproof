@@ -21,11 +21,11 @@ The only thing standing between BootProof and 1,000 receipts is the single thing
 **Goal:** a stranger can `npx bootproof up <repo>` and get a Living Receipt.
 
 **Checklist:**
-- [ ] Fix the npm package metadata (homepage/repository fields point to the wrong URL — `rossbuckley1990-hash/bootproof` instead of `bootproof/bootproof`). This is a 5-minute fix that has been leaking every visitor.
-- [ ] Publish `0.3.0` to npm. The published version is `0.1.0`; the repo is three minor versions ahead. The publishing muscle exists — the release cadence is broken.
-- [ ] The Living Receipt HTML (`assets/living-receipt.html`) is on `main` and reachable via raw.githubusercontent.com. ✓ Done.
-- [ ] The badge template (`assets/bootproof-badge-template.md`) is on `main`. ✓ Done.
-- [ ] The README links to the Living Receipt with a clickable badge. ✓ Done.
+- [x] Fix the npm package metadata (homepage/repository fields point to the wrong URL — `rossbuckley1990-hash/bootproof` instead of `bootproof/bootproof`). This is a 5-minute fix that has been leaking every visitor. **Fixed in commit on `main` — `repository`, `bugs.url`, and `homepage` now all point to `github.com/bootproof/bootproof`. The published npm package at `0.1.0` still has the old URL until 0.3.0 is published (next item).**
+- [ ] Publish `0.3.0` to npm. The published version is `0.1.0`; the repo is three minor versions ahead. The publishing muscle exists — the release cadence is broken. **Requires `npm publish` with npm credentials — run locally, not from a CI/sandbox. The `release:check` script (`npm test && npm run build && npm run pack:check && npm publish --dry-run`) is the pre-flight.**
+- [x] The Living Receipt HTML (`assets/living-receipt.html`) is on `main` and reachable via raw.githubusercontent.com.
+- [x] The badge template (`assets/bootproof-badge-template.md`) is on `main`.
+- [x] The README links to the Living Receipt with a clickable badge.
 
 **Success metric:** `npx bootproof up https://github.com/any-public-repo` works on a fresh machine with Node 20+. No errors. Writes a receipt.
 
