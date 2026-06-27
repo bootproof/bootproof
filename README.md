@@ -700,6 +700,23 @@ See [docs/HONESTY_CONTRACT.md](docs/HONESTY_CONTRACT.md).
 
 ## Safety model
 
+### Execution isolation (read this before running on a repo you don't trust)
+
+BootProof's execution model is **honest by default, not isolated by default**. There is no general-purpose container sandbox in the current release. Here is exactly what happens when you run `bootproof up`:
+
+- **Default (`--provider docker`)**: BootProof will only execute inside Docker for **source-built Compose applications** (repos with a `docker-compose.yml` where the app service is built from source). For every other repo — plain Node, Python, Rust, Go — the Docker provider **refuses to run** with `orchestration_not_supported` rather than silently falling back to the host. This is intentional: the default is fail-closed, not silent host execution.
+- **`--provider local --unsafe-local`**: runs install and start commands **directly on your host machine** using `spawn(command, { shell: true })`. There is no container, no network restriction, no read-only filesystem. The `--unsafe-local` flag is the explicit consent gate — you are acknowledging that you have reviewed the inferred commands and accept that the repo's code (including `postinstall` scripts, `prestart` hooks, and anything the start command does) will run on your machine with your privileges.
+- **Remote repos** (`bootproof up https://github.com/...`): BootProof clones for inspection but **refuses to execute** without `--provider local --unsafe-local`. Inspection is safe; execution requires consent.
+
+**Before running `bootproof up --provider local --unsafe-local` on a repo you didn't write:**
+1. Run `bootproof up <repo> --dry-run` first to see the inferred commands without executing them.
+2. Read the plan. The install command and start command will run on your host.
+3. Only then add `--unsafe-local --install` to actually execute.
+
+This is the current truth. General-purpose Docker isolation for non-Compose repos is on the roadmap but is not in this release. If that's a blocker for your use case, do not use BootProof on untrusted repos yet.
+
+### Repair safety
+
 BootProof treats repair actions as executable risk.
 
 The repair safety model blocks or escalates dangerous commands before they run.
@@ -936,6 +953,7 @@ BootProof is not:
 - an AI coding agent
 - a guarantee that every repo can be run automatically
 - a cloud product hidden inside an OSS repo
+- a sandbox or container runtime — `--provider local` runs code on your host; `--provider docker` only isolates source-built Compose apps
 
 BootProof is the honest run button for repos.
 

@@ -124,7 +124,9 @@ Usage:
 
 Options for up:
   --provider docker|local   execution provider (default docker)
-  --unsafe-local            required acknowledgement for --provider local
+      docker: only works for source-built Compose applications; refuses host commands for plain repos
+      local:  runs install/start commands directly on your host machine (requires --unsafe-local)
+  --unsafe-local            required consent for --provider local; confirms you accept host execution
   --install                 run the dependency install step (off by default)
   --workspace <dir>         pick a monorepo workspace
   --command <command>       override the inferred application start command
@@ -137,8 +139,8 @@ Options for up:
   --receipt                 write a self-verifying Living Receipt HTML to .bootproof/living-receipt.html
 
 Options for fix:
-  --provider docker|local   execution provider (default docker)
-  --unsafe-local            required acknowledgement for local sandbox execution
+  --provider docker|local   execution provider (default docker; docker only works for Compose apps)
+  --unsafe-local            required consent for --provider local; confirms you accept host execution
   --port <n>                override inferred application port
   --timeout <ms>            before/after health timeout (default 60000)
   --ai                      optional BYOK suggestion after no deterministic repair is known
