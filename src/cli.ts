@@ -6,6 +6,7 @@ import { inferRepo } from "./infer.js";
 import { buildPlan, composeFileFor, envExampleFor } from "./plan.js";
 import { up, type UpOptions, type UpOutcome } from "./run.js";
 import { verifySignature, attestationPath, writeAttestation, TOOL_ID } from "./proof.js";
+import { emitLivingReceipt } from "./receipt.js";
 import { pollHealth } from "./exec.js";
 import { buildExternalHealthAttestation } from "./external-health.js";
 import {
@@ -73,7 +74,7 @@ const SUPPORTED_FLAGS: Record<string, ReadonlySet<string>> = {
   "explain-run": new Set(["ci"]),
   "apply-repair": new Set(["receipt", "dry-run", "json", "ci"]),
   fix: new Set(["provider", "unsafe-local", "port", "timeout", "dry-run", "json", "ci", "ai"]),
-  up: new Set(["provider", "unsafe-local", "install", "workspace", "port", "timeout", "dry-run", "json", "ci", "command", "external-health"]),
+  up: new Set(["provider", "unsafe-local", "install", "workspace", "port", "timeout", "dry-run", "json", "ci", "command", "external-health", "receipt"]),
   "verify-url": new Set(["timeout", "json", "ci"]),
   verify: new Set(["ci"]),
   attest: new Set(["ci"]),
@@ -133,6 +134,7 @@ Options for up:
   --dry-run                 show what would happen; executes nothing, writes nothing
   --json                    one bootproof/result/v1 JSON object on stdout
   --ci                      no prompts, colours, or interactive UI; fail closed
+  --receipt                 write a self-verifying Living Receipt HTML to .bootproof/living-receipt.html
 
 Options for fix:
   --provider docker|local   execution provider (default docker)
@@ -868,6 +870,11 @@ async function main() {
     };
     const outcome = await up(target, opts);
     const verified = outcome.attestation?.result.booted === true && outcome.attestation.result.healthVerified === true;
+    if (flags.receipt && outcome.attestation) {
+      const receiptPath = path.join(target, ".bootproof", "living-receipt.html");
+      emitLivingReceipt(outcome.attestation, receiptPath);
+      if (!flags.json) console.log(`${GREEN}\u2713${RESET} Living Receipt: ${portableRelative(process.cwd(), receiptPath)}`);
+    }
     if (flags.json) {
       console.log(JSON.stringify(machineResult(outcome, evidencePath)));
       if (flags.ci || !opts.dryRun) process.exitCode = verified ? 0 : 1;

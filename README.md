@@ -47,16 +47,18 @@ Try it now — download [`assets/living-receipt.html`](assets/living-receipt.htm
   <a href="assets/living-receipt.html"><img src="https://img.shields.io/badge/open%20the%20Living%20Receipt-%E2%9C%93%20real%20capture%20%C2%B7%20self--verifying-0E9D5B?style=flat-square&labelColor=16181D" alt="Open the Living Receipt"></a>
 </p>
 
-**Reproduce the capture.** The engine that produced these real receipts ships in this repo:
+**Reproduce the capture.** The engine that produced these real receipts ships in this repo — both the standalone MVP (`scripts/bootproof_up.mjs`) and the integrated TypeScript CLI:
 
 ```bash
-# Boot the real fixture that boots to HTTP 200
+# Using the TypeScript CLI (the published npm package) — emits the receipt natively
+npx bootproof up <any-repo> --provider local --unsafe-local --install --receipt
+
+# The receipt is written to .bootproof/living-receipt.html
+
+# Or use the standalone MVP engine (for development/testing)
 node scripts/bootproof_up.mjs fixtures/real-booting-app --label "real-booting-app"
 
-# Boot the real fixture that segfaults at runtime
-node scripts/bootproof_up.mjs fixtures/real-slop-app --label "real-slop-app"
-
-# Regenerate the Living Receipt HTML from those real captures
+# Regenerate the Living Receipt HTML from MVP captures
 node scripts/build_living_receipt.mjs \
   scripts/records/real-booting-app.json \
   scripts/records/real-slop-app.json \
@@ -65,6 +67,8 @@ node scripts/build_living_receipt.mjs \
 # Run the smoke test (verifies both native and fallback paths)
 node scripts/verify_living_receipt.mjs
 ```
+
+**`--receipt` is now a native flag.** `npx bootproof up <repo> --receipt` runs the real TypeScript CLI, boots the repo for real, observes health for real, signs the attestation with ed25519, and emits the self-verifying Living Receipt HTML — all in one command. The receipt contains the real captured evidence from that run, not mock data.
 
 **What this proves:** the receipt is not a description of a product — it *is* the product, and it runs the moment you open it. It works offline, survives being forwarded, and cannot be forged without breaking the signature. A platform-issued green check dies the moment you leave the platform. A Living Receipt travels.
 
