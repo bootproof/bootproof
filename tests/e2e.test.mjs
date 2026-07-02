@@ -1135,7 +1135,7 @@ test("signature trust: repair receipts and registry entries use the same signer 
     schema: "bootproof/repair-receipt/v1",
     repairId: "foreign-receipt",
     createdAt: "2026-06-13T00:00:00.000Z",
-    bootproofVersion: "0.3.0",
+    bootproofVersion: "0.4.0",
     beforeFailureClass: "unknown_failure",
     beforeEvidenceHash: "sha256:test",
     proposedAction: {

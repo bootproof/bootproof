@@ -309,7 +309,7 @@ test("GitHub Action CI invocation is non-interactive and preserves the zero-AI b
     );
     assert.deepEqual(
       buildUpInvocation(normalizeInputs()).slice(0, 5),
-      ["--yes", "--package", "bootproof@0.3.0", "--", "bootproof"],
+      ["--yes", "--package", "bootproof@0.4.0", "--", "bootproof"],
     );
     assert.ok(calls[0].args.includes("--ci"));
     assert.ok(calls[0].args.includes("--json"));
