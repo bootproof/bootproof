@@ -91,3 +91,6 @@ jobs:
           name: boot-receipt
           path: fixtures/real-booting-app/.bootproof/attestation.json
           if-no-files-found: ignore
+          # 2555 days ≈ 7 years. BootProof wears its own badge and preserves
+          # its own evidence to the same standard it asks of consumers.
+          retention-days: 2555

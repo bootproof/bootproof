@@ -156,6 +156,57 @@ Charge for the autopilot, memory, governance, and fleet control.
 - Redact secrets before constructing or sending prompts.
 - AI must never participate in the `bootproof up` proof path.
 
+## AI Evidence Capture
+
+When AI repair suggestions are enabled, the repair receipt is the audit
+record. It must be complete enough that an investigator can reconstruct what
+the AI proposed, how BootProof classified it, and what was observed — without
+trusting the AI's self-reported confidence.
+
+- Capture the redacted failure evidence sent to the AI provider.
+- Capture the AI's structured response (per `bootproof/ai-repair-suggestion/v1`):
+  suggested action, risk level, `why_this_is_safe`, `what_to_check_after`.
+- Store both in the repair receipt, signed under the same ed25519 key as the
+  surrounding evidence.
+- Redact PII, secrets, and provider inference metadata before persistence.
+- Mark the receipt `source: ai_suggested` (distinct from
+  `deterministic_playbook`) so an auditor can filter AI-origin repairs.
+- The AI prompt and response are evidence of what was *suggested*, never
+  evidence of what *worked*. Only the post-action health observation may
+  establish success.
+
+This exists to make AI-assisted repairs auditable after the fact. A regulator
+asking "what did the agent propose, and was it approved?" must be answerable
+from the receipt alone, offline, with no access to the AI provider.
+
+## Compliance Features
+
+These are product correctness requirements, not marketing claims. Each is
+enforced by the deterministic engine and preserved in signed evidence.
+
+- **Redaction by default.** Secrets are redacted from attestations, repair
+  receipts, logs, registry exports, and AI prompts before persistence or
+  transmission. Redaction is not a post-hoc filter; it runs in the evidence
+  path.
+- **Offline-first.** OSS works without Cloud, without telemetry, without an
+  account. Regulated environments can run BootProof on an air-gapped runner
+  and produce verifiable evidence.
+- **Deterministic failure classification.** Failures are classified into a
+  documented taxonomy (`docs/FAILURE_TAXONOMY.md`), not hidden behind a
+  generic "build failed". An auditor sees the same class string the engine
+  saw.
+- **Tamper-evident evidence.** Every attestation is ed25519-signed; any byte
+  change invalidates the signature. The Living Receipt re-verifies its own
+  signature in a browser with zero network calls.
+- **Trust ladder, not trust theater.** The trust level (`local_developer_signed`
+  → `ci_oidc_signed` → `neutral_runner_signed` → `transparency_logged`) is
+  printed on the receipt. A local receipt proves integrity-since-signing,
+  not that the signer was honest — and the receipt says so.
+- **Receipt preservation.** Receipts are local files the user controls. CI
+  workflows that use Receipt Gate should upload attestations as artifacts
+  with long retention (the self-gate and the receipt-gate CI both use 2555
+  days / ~7 years) to support audit timelines.
+
 ## Implementation Rules
 
 - Prefer small, surgical changes.
