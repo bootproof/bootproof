@@ -836,7 +836,7 @@ Protected application env files remain untouched.
 
 ## Attestation trust
 
-Current local attestations contain:
+Local attestations (the default) contain:
 
 ```json
 {
@@ -850,7 +850,45 @@ Current local attestations contain:
 
 Local attestations are useful evidence. CI/OIDC attestations are stronger supply-chain proof. BootProof does not pretend local laptop proof is enterprise CI proof.
 
-The future `ci_oidc_signed` level is reserved but is not emitted today.
+### CI OIDC signing
+
+Inside GitHub Actions with `permissions: id-token: write`, pass `--ci-oidc` to fetch the runner's OIDC token and embed its claims in the attestation:
+
+```bash
+bootproof up . --provider local --unsafe-local --ci-oidc
+```
+
+The attestation then carries `ci_oidc_signed` trust with the OIDC claims:
+
+```json
+{
+  "trust": {
+    "level": "ci_oidc_signed",
+    "signer": "local_ed25519",
+    "oidc": {
+      "iss": "https://token.actions.githubusercontent.com",
+      "sub": "repo:bootproof/bootproof:ref:refs/heads/main",
+      "repository": "bootproof/bootproof",
+      "run_id": "123456",
+      "workflow": "CI",
+      "job_workflow_ref": "bootproof/bootproof/.github/workflows/ci.yml@refs/heads/main"
+    }
+  }
+}
+```
+
+The ed25519 signature still provides integrity; the OIDC evidence provides CI provenance. A verifier can independently validate both the signature and the OIDC claims. The `neutral_runner_signed` and `transparency_logged` levels remain on the roadmap.
+
+### Key rotation
+
+The local signing key can be rotated without invalidating existing attestations (each carries its public key inline and verifies independently):
+
+```bash
+bootproof rotate-keys                    # generate new key, back up old
+bootproof rotate-keys --repo . --resign  # also re-sign the latest attestation
+```
+
+Old keys are archived to `~/.bootproof/archived-keys/` so existing attestations remain verifiable.
 
 ---
 

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { mkdtemp, rm } from "node:fs/promises";
-import { buildAttestation, detectOidcEnv, resolveTrust } from "../dist/proof.js";
+import { buildAttestation, detectOidcEnv, resolveTrust, rotateSigner, verifySignature, writeAttestation } from "../dist/proof.js";
 import { emitLivingReceipt, attestationToRecord } from "../dist/receipt.js";
 
 function minimalInference(repoPath) {
@@ -334,5 +334,107 @@ test("OIDC: buildAttestation embeds ci_oidc_signed trust when provided", async (
     assert.ok(verifySignature(att), "ci_oidc_signed attestation must verify");
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("rotate-keys: generates a new keypair and backs up the old key", () => {
+  const homeBackup = process.env.HOME;
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "bp-rotate-home-"));
+  try {
+    process.env.HOME = tmpHome;
+    // First, create an initial key by building an attestation.
+    const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), "bp-rotate-repo-"));
+    try {
+      const att1 = buildAttestation({
+        repo: tmpRepo,
+        plan: minimalPlan(),
+        observed: minimalObserved(),
+        startedAt: new Date().toISOString(),
+        booted: true,
+        healthVerified: true,
+        healthObservation: "HTTP 200",
+        failureClass: null,
+        failureEvidence: null,
+        explanation: "test",
+      });
+      const oldPublicKey = att1.signer.publicKey;
+
+      // Rotate.
+      const result = rotateSigner({ backup: true });
+      assert.equal(result.schema, "bootproof/key-rotation/v1");
+      assert.ok(result.oldPublicKey.includes("BEGIN PUBLIC KEY"));
+      assert.ok(result.newPublicKey.includes("BEGIN PUBLIC KEY"));
+      assert.notEqual(result.oldPublicKey, result.newPublicKey, "new key must differ from old");
+      assert.ok(result.backedUpTo, "old key must be backed up");
+      assert.ok(fs.existsSync(result.backedUpTo), "backup file must exist");
+
+      // Build a second attestation — it must use the NEW key.
+      const att2 = buildAttestation({
+        repo: tmpRepo,
+        plan: minimalPlan(),
+        observed: minimalObserved(),
+        startedAt: new Date().toISOString(),
+        booted: true,
+        healthVerified: true,
+        healthObservation: "HTTP 200",
+        failureClass: null,
+        failureEvidence: null,
+        explanation: "test after rotation",
+      });
+      assert.notEqual(att2.signer.publicKey, oldPublicKey, "new attestation must use the new key");
+      assert.equal(att2.signer.publicKey, result.newPublicKey, "new attestation key must match rotation result");
+      assert.ok(verifySignature(att2), "new attestation must verify");
+
+      // The OLD attestation must STILL verify with its embedded (old) public key.
+      assert.ok(verifySignature(att1), "old attestation must still verify after rotation");
+    } finally {
+      fs.rmSync(tmpRepo, { recursive: true, force: true });
+    }
+  } finally {
+    process.env.HOME = homeBackup;
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test("rotate-keys: --resign re-signs the latest attestation with the new key", () => {
+  const homeBackup = process.env.HOME;
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "bp-resign-home-"));
+  try {
+    process.env.HOME = tmpHome;
+    const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), "bp-resign-repo-"));
+    try {
+      // Write an attestation with the old key.
+      const att = buildAttestation({
+        repo: tmpRepo,
+        plan: minimalPlan(),
+        observed: minimalObserved(),
+        startedAt: new Date().toISOString(),
+        booted: true,
+        healthVerified: true,
+        healthObservation: "HTTP 200",
+        failureClass: null,
+        failureEvidence: null,
+        explanation: "before rotation",
+      });
+      writeAttestation(tmpRepo, att);
+      const oldPublicKey = att.signer.publicKey;
+      const oldSignature = att.signature;
+
+      // Rotate with --resign.
+      const result = rotateSigner({ repo: tmpRepo, resignAttestation: true, backup: false });
+      assert.equal(result.reSignedAttestation, true);
+      assert.notEqual(result.newPublicKey, oldPublicKey);
+
+      // Read the re-signed attestation.
+      const reSigned = JSON.parse(fs.readFileSync(path.join(tmpRepo, ".bootproof", "attestation.json"), "utf8"));
+      assert.notEqual(reSigned.signature, oldSignature, "signature must change after re-signing");
+      assert.equal(reSigned.signer.publicKey, result.newPublicKey, "attestation must carry the new public key");
+      assert.ok(verifySignature(reSigned), "re-signed attestation must verify with the new key");
+    } finally {
+      fs.rmSync(tmpRepo, { recursive: true, force: true });
+    }
+  } finally {
+    process.env.HOME = homeBackup;
+    fs.rmSync(tmpHome, { recursive: true, force: true });
   }
 });

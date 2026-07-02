@@ -55,6 +55,7 @@ import {
   type RequestedAiRepair,
 } from "./ai-repair.js";
 import { exportSbom, type SbomFormat } from "./sbom.js";
+import { rotateSigner } from "./proof.js";
 import { diffRefs, type DiffResult } from "./diff.js";
 import type { Attestation } from "./types.js";
 
@@ -66,7 +67,7 @@ const bad = (s: string) => console.log(`${RED}\u2717 ${s}${RESET}`);
 const disableColor = () => { GREEN = ""; YELLOW = ""; RED = ""; DIM = ""; BOLD = ""; RESET = ""; };
 const portableRelative = (from: string, to: string) => path.relative(from, to).replace(/\\/g, "/");
 
-const COMMANDS = ["up", "verify-url", "plan-agent", "explain-run", "fix", "apply-repair", "diff", "analyze", "plan", "verify", "explain", "attest", "registry", "export-sbom", "help", "version", "--help", "-h", "--version"];
+const COMMANDS = ["up", "verify-url", "plan-agent", "explain-run", "fix", "apply-repair", "diff", "analyze", "plan", "verify", "explain", "attest", "registry", "export-sbom", "rotate-keys", "help", "version", "--help", "-h", "--version"];
 const SUPPORTED_FLAGS: Record<string, ReadonlySet<string>> = {
   diff: new Set(["base", "head", "json", "ci"]),
   analyze: new Set(["workspace", "json", "ci"]),
@@ -81,6 +82,7 @@ const SUPPORTED_FLAGS: Record<string, ReadonlySet<string>> = {
   attest: new Set(["ci"]),
   registry: new Set(["mode", "federated", "ci"]),
   "export-sbom": new Set(["format", "json", "ci"]),
+  "rotate-keys": new Set(["repo", "resign", "no-backup", "json", "ci"]),
 };
 void normalizeDockerBindPath; void detectHostPlatform; // exported surface, used by docker provider work in progress
 
@@ -122,6 +124,7 @@ Usage:
   bootproof attest export <path>                            compatibility alias for local registry export
   bootproof attest check <path>                             verify a registry entry signature
   bootproof export-sbom <path> [--format cyclonedx-json]    export a CycloneDX SBOM from package-lock.json
+  bootproof rotate-keys [--repo <path>] [--resign]          rotate the local ed25519 signing key (back up old, generate new)
   bootproof version
 
 Options for up:
@@ -1059,6 +1062,31 @@ async function main() {
       console.log(`  format: ${result.format}`);
       console.log(`  components: ${result.componentCount}`);
       console.log(`${DIM}CycloneDX 1.5 JSON. Read from package-lock.json. No transitive resolution beyond the lockfile.${RESET}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (flags.json) console.log(JSON.stringify(machineFailure(msg)));
+      else bad(msg);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (cmd === "rotate-keys") {
+    const repo = flags.repo ? path.resolve(String(flags.repo)) : undefined;
+    const resign = Boolean(flags.resign);
+    const backup = !flags["no-backup"];
+    try {
+      const result = rotateSigner({ repo, resignAttestation: resign, backup });
+      if (flags.json) {
+        console.log(JSON.stringify(result));
+        return;
+      }
+      ok("Signing key rotated.");
+      console.log(`  old public key: ${result.oldPublicKey.split("\n")[0]}...`);
+      console.log(`  new public key: ${result.newPublicKey.split("\n")[0]}...`);
+      if (result.backedUpTo) console.log(`  old key backed up to: ${result.backedUpTo}`);
+      if (result.reSignedAttestation) console.log(`  re-signed latest attestation at ${repo}`);
+      console.log(`${DIM}Existing attestations still verify with their embedded public key. Rotation only affects future signatures.${RESET}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (flags.json) console.log(JSON.stringify(machineFailure(msg)));

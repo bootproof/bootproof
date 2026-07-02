@@ -51,6 +51,79 @@ function loadOrCreateSigner(): { privateKey: crypto.KeyObject; publicKeyPem: str
   return { privateKey: crypto.createPrivateKey(privateKeyPem), publicKeyPem };
 }
 
+export interface RotationResult {
+  schema: "bootproof/key-rotation/v1";
+  rotatedAt: string;
+  oldPublicKey: string;
+  newPublicKey: string;
+  backedUpTo: string | null;
+  reSignedAttestation: boolean;
+}
+
+/**
+ * Rotate the local ed25519 signing key. The old key's public key is archived
+ * (so existing attestations remain independently verifiable), a new keypair is
+ * generated, and the latest attestation in the given repo is optionally
+ * re-signed with the new key.
+ *
+ * Rotation does NOT invalidate existing attestations — they still carry the
+ * old public key inline and verify with it. Rotation only affects what key
+ * future attestations will be signed with.
+ */
+export function rotateSigner(opts: {
+  repo?: string;
+  resignAttestation?: boolean;
+  backup?: boolean;
+} = {}): RotationResult {
+  const p = signerKeyPath();
+  const oldKey = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : null;
+  const oldPublicKeyPem = oldKey?.publicKeyPem ?? null;
+
+  // Generate the new keypair.
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
+  const newPrivateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const newPublicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+
+  // Back up the old key before overwriting (unless explicitly skipped).
+  let backedUpTo: string | null = null;
+  if (opts.backup !== false && oldKey) {
+    const backupDir = path.join(os.homedir(), ".bootproof", "archived-keys");
+    fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
+    const backupName = `signer-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    backedUpTo = path.join(backupDir, backupName);
+    fs.writeFileSync(backedUpTo, JSON.stringify(oldKey, null, 2), { mode: 0o600 });
+  }
+
+  // Write the new key.
+  fs.mkdirSync(path.dirname(p), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(p, JSON.stringify({ privateKeyPem: newPrivateKeyPem, publicKeyPem: newPublicKeyPem }), { mode: 0o600 });
+
+  // Optionally re-sign the latest attestation with the new key.
+  let reSigned = false;
+  if (opts.resignAttestation && opts.repo) {
+    const attPath = attestationPath(opts.repo);
+    if (fs.existsSync(attPath)) {
+      const att = JSON.parse(fs.readFileSync(attPath, "utf8")) as Attestation;
+      // Re-sign: the canonical body excludes signature and signer fields.
+      const body = canonicalBody(att);
+      const newPrivateKey = crypto.createPrivateKey(newPrivateKeyPem);
+      att.signature = crypto.sign(null, body, newPrivateKey).toString("base64");
+      att.signer = { publicKey: newPublicKeyPem, algorithm: "ed25519" };
+      fs.writeFileSync(attPath, JSON.stringify(att, null, 2) + "\n");
+      reSigned = true;
+    }
+  }
+
+  return {
+    schema: "bootproof/key-rotation/v1",
+    rotatedAt: new Date().toISOString(),
+    oldPublicKey: oldPublicKeyPem ?? "(no prior key existed)",
+    newPublicKey: newPublicKeyPem,
+    backedUpTo,
+    reSignedAttestation: reSigned,
+  };
+}
+
 function canonicalBody(att: Attestation): Buffer {
   const { signature: _s, signer: _k, ...body } = att;
   return Buffer.from(JSON.stringify(body));
