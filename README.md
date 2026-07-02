@@ -521,6 +521,15 @@ npx bootproof diff --base main --head HEAD
 npx bootproof diff --base main --head HEAD --json
 ```
 
+### Export a CycloneDX SBOM
+
+```bash
+npx bootproof export-sbom .
+npx bootproof export-sbom . --json
+```
+
+Reads `package-lock.json` and writes `.bootproof/sbom.cdx.json` in CycloneDX 1.5 JSON format. Each top-level dependency in the lockfile becomes a `library` component with a `pkg:npm/{name}@{version}` purl. The application itself is recorded as the `metadata.component`. No transitive resolution is performed beyond what the lockfile already records, and no code is executed to produce the SBOM. Repositories without a `package-lock.json` are refused. The only supported `--format` value is `cyclonedx-json`.
+
 ### Deterministic repair
 
 ```bash
