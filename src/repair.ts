@@ -38,6 +38,7 @@ import {
   type DeterministicRepairCandidate,
 } from "./repair-playbooks.js";
 import type { Attestation, FailureClass, PackageManager, PreparationCommand } from "./types.js";
+import type { RequestedAiRepair } from "./ai-repair.js";
 
 export * from "./repair-safety.js";
 export * from "./repair-playbooks.js";
@@ -73,6 +74,20 @@ export interface RepairReceipt extends RepairReceiptBase {
   finishedAt?: string;
   signer: { publicKey: string; algorithm: "ed25519" } | null;
   signature: string | null;
+  /**
+   * AI evidence captured for auditability when source === "ai_suggested".
+   * Contains the redacted prompt context and the AI's structured suggestion.
+   * Required by the AGENTS.md constitution: an auditor must be able to
+   * reconstruct what the AI proposed without trusting the AI provider.
+   */
+  aiEvidence?: {
+    provider: "openai" | "anthropic";
+    model: string;
+    /** The redacted bootproof/ai-repair-context/v1 object sent to the AI. */
+    context: Record<string, unknown>;
+    /** The validated bootproof/ai-repair-suggestion/v1 object the AI returned. */
+    suggestion: Record<string, unknown>;
+  };
 }
 
 export interface RepairResult {
@@ -102,6 +117,8 @@ export interface RepairOptions {
   remoteSource?: string;
   commandApproved?: boolean;
   actionApproved?: boolean;
+  /** The full AI repair request (context + suggestion) to embed in the receipt for audit. */
+  aiRepair?: RequestedAiRepair | null;
 }
 
 export interface LatestRepairCandidate {
@@ -946,6 +963,7 @@ function buildLifecycleRepairReceipt(input: {
   after?: Attestation | null;
   explanation: string;
   redactionsApplied?: string[];
+  aiRepair?: RequestedAiRepair | null;
 }): RepairReceipt {
   const after = input.after ?? null;
   const verified = Boolean(
@@ -1004,6 +1022,16 @@ function buildLifecycleRepairReceipt(input: {
               healthObservation: after.result.healthObservation,
               attestationSha256: sha256Attestation(after),
             },
+          },
+        }
+      : {}),
+    ...(input.aiRepair
+      ? {
+          aiEvidence: {
+            provider: input.aiRepair.provider,
+            model: input.aiRepair.model,
+            context: input.aiRepair.context as unknown as Record<string, unknown>,
+            suggestion: input.aiRepair.suggestion as unknown as Record<string, unknown>,
           },
         }
       : {}),
@@ -1370,6 +1398,7 @@ export async function executeAiSuggestedRepair(
       before,
       candidate,
       createdAt: startedAt,
+      aiRepair: options.aiRepair ?? null,
       ...input,
     });
   const provider = options.provider ?? before.plan.provider;

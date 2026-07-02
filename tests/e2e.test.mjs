@@ -505,6 +505,27 @@ test("e2e: real boot, observed health, signed attestation that verifies", async 
   assert.match(v.out, /signature valid/);
 });
 
+test("--health-path overrides the inferred health endpoint path", async () => {
+  const repo = freshCopy("hello-app");
+  const port = await getFreePort();
+  const { out } = run(["up", repo, "--provider", "local", "--unsafe-local", "--port", String(port), "--health-path", "/health", "--timeout", "20000"]);
+  assert.match(out, /BOOTED/);
+  assert.match(out, new RegExp(`observed HTTP 200 at http://localhost:${port}/health`));
+  const att = JSON.parse(fs.readFileSync(path.join(repo, ".bootproof", "attestation.json"), "utf8"));
+  assert.equal(att.result.healthVerified, true);
+  assert.equal(att.result.healthEvidence.requestedUrl, `http://localhost:${port}/health`);
+  assert.equal(att.plan.healthUrl, `http://localhost:${port}/health`);
+  assert.ok(att.plan.healthCandidates[0].endsWith("/health"), "primary health candidate must use the override path");
+  assert.ok(att.signature, "attestation must be signed");
+});
+
+test("--health-path rejects a path without a leading slash", () => {
+  const repo = freshCopy("hello-app");
+  const { out, code } = run(["up", repo, "--provider", "local", "--unsafe-local", "--health-path", "health", "--json"], true);
+  assert.equal(code, 1);
+  assert.match(out, /--health-path requires a path starting with \//);
+});
+
 test("parent environment including RAILS_ENV and PATH reaches the app process", async () => {
   const repo = freshCopy("hello-app");
   const port = await getFreePort();

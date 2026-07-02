@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { mkdtemp, rm } from "node:fs/promises";
-import { buildAttestation } from "../dist/proof.js";
+import { buildAttestation, detectOidcEnv, resolveTrust } from "../dist/proof.js";
 import { emitLivingReceipt, attestationToRecord } from "../dist/receipt.js";
 
 function minimalInference(repoPath) {
@@ -238,6 +238,100 @@ test("emitLivingReceipt preserves honest failure verdicts", async () => {
     const record = attestationToRecord(att);
     assert.equal(record.booted, false);
     assert.equal(record.failureClass, "install_failed");
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("OIDC: detectOidcEnv returns null without GitHub Actions env vars", () => {
+  assert.equal(detectOidcEnv({}), null);
+  assert.equal(detectOidcEnv({ ACTIONS_ID_TOKEN_REQUEST_URL: "only-url" }), null);
+  assert.equal(detectOidcEnv({ ACTIONS_ID_TOKEN_REQUEST_TOKEN: "only-token" }), null);
+  assert.ok(detectOidcEnv({
+    ACTIONS_ID_TOKEN_REQUEST_URL: "https://pipelines.actions.githubusercontent.com/example",
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: "abc123",
+  }));
+});
+
+test("OIDC: resolveTrust returns local_developer_signed without --ci-oidc", async () => {
+  const trust = await resolveTrust({ ciOidc: false });
+  assert.equal(trust.level, "local_developer_signed");
+  assert.equal(trust.signer, "local_ed25519");
+  assert.equal(trust.oidc, null);
+});
+
+test("OIDC: resolveTrust throws on --ci-oidc without env vars", async () => {
+  await assert.rejects(
+    resolveTrust({ ciOidc: true, env: {} }),
+    /--ci-oidc was requested but ACTIONS_ID_TOKEN_REQUEST_URL/,
+  );
+});
+
+test("OIDC: resolveTrust fetches claims and returns ci_oidc_signed", async () => {
+  // Construct a fake JWT payload with GitHub Actions claims.
+  const payload = {
+    iss: "https://token.actions.githubusercontent.com",
+    sub: "repo:bootproof/bootproof:ref:refs/heads/main",
+    aud: "bootproof.dev",
+    ref: "refs/heads/main",
+    repository: "bootproof/bootproof",
+    repository_owner: "bootproof",
+    run_id: "123456",
+    run_attempt: "1",
+    event_name: "push",
+    workflow: "CI",
+    job_workflow_ref: "bootproof/bootproof/.github/workflows/ci.yml@refs/heads/main",
+  };
+  const fakeJwt = `header.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.signature`;
+  const trust = await resolveTrust({
+    ciOidc: true,
+    env: {
+      ACTIONS_ID_TOKEN_REQUEST_URL: "https://pipelines.actions.githubusercontent.com/example",
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: "abc123",
+    },
+    fetchImpl: async (url) => {
+      assert.ok(url.includes("audience=bootproof.dev"), "must request the bootproof.dev audience");
+      return new Response(JSON.stringify({ value: fakeJwt }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  assert.equal(trust.level, "ci_oidc_signed");
+  assert.equal(trust.signer, "local_ed25519");
+  assert.equal(trust.oidc.iss, "https://token.actions.githubusercontent.com");
+  assert.equal(trust.oidc.sub, "repo:bootproof/bootproof:ref:refs/heads/main");
+  assert.equal(trust.oidc.repository, "bootproof/bootproof");
+  assert.equal(trust.oidc.run_id, "123456");
+});
+
+test("OIDC: buildAttestation embeds ci_oidc_signed trust when provided", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bp-oidc-"));
+  try {
+    const trust = {
+      level: "ci_oidc_signed",
+      signer: "local_ed25519",
+      oidc: { iss: "https://token.actions.githubusercontent.com", sub: "repo:test:ref:main" },
+    };
+    const att = buildAttestation({
+      repo: tmpDir,
+      plan: minimalPlan(),
+      observed: minimalObserved(),
+      startedAt: new Date().toISOString(),
+      booted: true,
+      healthVerified: true,
+      healthObservation: "HTTP 200 at http://localhost:3000/",
+      failureClass: null,
+      failureEvidence: null,
+      explanation: "test",
+      trust,
+    });
+    assert.equal(att.trust.level, "ci_oidc_signed");
+    assert.equal(att.trust.oidc.iss, "https://token.actions.githubusercontent.com");
+    assert.equal(att.trust.oidc.sub, "repo:test:ref:main");
+    // The signature must still verify with the ci_oidc_signed trust embedded.
+    const { verifySignature } = await import("../dist/proof.js");
+    assert.ok(verifySignature(att), "ci_oidc_signed attestation must verify");
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }

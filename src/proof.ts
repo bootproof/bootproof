@@ -5,6 +5,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import type {
   Attestation,
+  AttestationTrust,
   ObservedStep,
   RunPlan,
   FailureClass,
@@ -16,6 +17,7 @@ import { buildExecutionEnv } from "./exec.js";
 import { redactJsonValue } from "./redact.js";
 
 export const TOOL_ID = "bootproof@0.3.0";
+export type { AttestationTrust } from "./types.js";
 
 export function gitInfo(repo: string): Attestation["repo"] {
   const git = (...args: string[]) => {
@@ -68,6 +70,7 @@ export function buildAttestation(input: {
   observedAt?: string | null;
   responseSnippet?: string;
   classification?: ExternalVerificationClassification | null;
+  trust?: AttestationTrust;
 }): Attestation {
   const verificationMode = input.verificationMode ?? "bootproof-orchestrated";
   const bootproofOrchestrated = verificationMode === "external-health"
@@ -108,7 +111,7 @@ export function buildAttestation(input: {
     redactionsApplied: [...redactionsApplied].sort(),
     repo: persistedRepo,
     environment: { os: `${os.platform()} ${os.release()}`, arch: os.arch(), node: process.version },
-    trust: { level: "local_developer_signed", signer: "local_ed25519", oidc: null },
+    trust: input.trust ?? { level: "local_developer_signed", signer: "local_ed25519", oidc: null },
     plan: persistedPlan,
     observed: persistedObserved,
     result: {
@@ -132,6 +135,78 @@ export function buildAttestation(input: {
   att.signature = crypto.sign(null, canonicalBody(att), privateKey).toString("base64");
   att.signer = { publicKey: publicKeyPem, algorithm: "ed25519" };
   return att;
+}
+
+/**
+ * Detect GitHub Actions OIDC environment. Present only when the workflow has
+ * `permissions: id-token: write`. The presence of these env vars IS the consent —
+ * the workflow author explicitly granted the OIDC scope.
+ */
+export function detectOidcEnv(env: NodeJS.ProcessEnv = process.env): { requestUrl: string; requestToken: string } | null {
+  const url = env.ACTIONS_ID_TOKEN_REQUEST_URL?.trim();
+  const token = env.ACTIONS_ID_TOKEN_REQUEST_TOKEN?.trim();
+  if (!url || !token) return null;
+  return { requestUrl: url, requestToken: token };
+}
+
+/**
+ * Fetch the OIDC JWT from GitHub Actions and decode its claims (without verification —
+ * verification is the receiver's job, not the signer's). Returns a compact record of
+ * claims suitable for embedding in the attestation trust block.
+ */
+export async function fetchOidcClaims(
+  requestUrl: string,
+  requestToken: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Record<string, string>> {
+  const url = new URL(requestUrl);
+  url.searchParams.set("audience", "bootproof.dev");
+  const response = await fetchImpl(url.toString(), {
+    headers: { authorization: `bearer ${requestToken}` },
+  });
+  if (!response.ok) {
+    throw new Error(`OIDC token request failed with HTTP ${response.status}`);
+  }
+  const body = await response.json() as { value?: string };
+  if (!body.value || typeof body.value !== "string") {
+    throw new Error("OIDC token response did not contain a 'value' field");
+  }
+  // Decode the JWT payload (middle segment). No verification — the receiver verifies.
+  const parts = body.value.split(".");
+  if (parts.length !== 3) throw new Error("OIDC token is not a valid JWT");
+  const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as Record<string, unknown>;
+  // Extract the claims that matter for provenance. Stringify everything for the schema.
+  const claims: Record<string, string> = {};
+  for (const key of ["iss", "sub", "aud", "ref", "repository", "repository_owner", "run_id", "run_attempt", "event_name", "workflow", "job_workflow_ref"]) {
+    if (payload[key] !== undefined && payload[key] !== null) {
+      claims[key] = String(payload[key]);
+    }
+  }
+  return claims;
+}
+
+/**
+ * Resolve the trust block for an attestation. When `--ci-oidc` is requested and
+ * the GitHub Actions OIDC environment is present, fetch the OIDC token and return
+ * a ci_oidc_signed trust block. Otherwise return local_developer_signed.
+ */
+export async function resolveTrust(opts: {
+  ciOidc?: boolean;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+} = {}): Promise<AttestationTrust> {
+  if (!opts.ciOidc) {
+    return { level: "local_developer_signed", signer: "local_ed25519", oidc: null };
+  }
+  const oidcEnv = detectOidcEnv(opts.env);
+  if (!oidcEnv) {
+    throw new Error(
+      "--ci-oidc was requested but ACTIONS_ID_TOKEN_REQUEST_URL/ACTIONS_ID_TOKEN_REQUEST_TOKEN are not set. "
+      + "Ensure the workflow has `permissions: id-token: write`.",
+    );
+  }
+  const claims = await fetchOidcClaims(oidcEnv.requestUrl, oidcEnv.requestToken, opts.fetchImpl);
+  return { level: "ci_oidc_signed", signer: "local_ed25519", oidc: claims };
 }
 
 export function signDetached(body: Buffer): { signature: string; publicKeyPem: string } {

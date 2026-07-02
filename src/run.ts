@@ -26,7 +26,7 @@ import {
   type ProcessEvidence,
 } from "./exec.js";
 import { classifyFailure, extractMissingEnvNames, safeLocalEnvValue } from "./taxonomy.js";
-import { buildAttestation, writeAttestation } from "./proof.js";
+import { buildAttestation, writeAttestation, resolveTrust, type AttestationTrust } from "./proof.js";
 import { redactText } from "./redact.js";
 
 function classifyHealthFailure(evidence: string): "health_http_error" | "health_check_timeout" {
@@ -100,6 +100,8 @@ export interface UpOptions {
   environment?: Record<string, string>;
   additionalPreparationCommands?: PreparationCommand[];
   command?: string;
+  healthPath?: string;
+  ciOidc?: boolean;
 }
 
 export interface UpOutcome {
@@ -229,7 +231,29 @@ export async function up(repoPath: string, opts: UpOptions): Promise<UpOutcome> 
       inference.portEvidence = `repository Compose published port retained; --port ${opts.port} was not applied`;
     }
   }
+  if (opts.healthPath) {
+    // Override the health endpoint path. Rewrites the path component of every
+    // health candidate URL. This resolves the case where an app answers on
+    // /health but returns 404 at / — the receipt then honestly signs a clean
+    // 200 instead of an honest-but-confusing 404 at the root.
+    const rewritePath = (url: string, newPath: string): string => {
+      try {
+        const parsed = new URL(url);
+        parsed.pathname = newPath;
+        parsed.search = "";
+        return parsed.toString();
+      } catch {
+        // Not a parseable URL; leave it alone rather than corrupting evidence.
+        return url;
+      }
+    };
+    inference.healthCandidates = inference.healthCandidates.map(candidate => rewritePath(candidate, opts.healthPath!));
+    inference.composeHealthCandidates = inference.composeHealthCandidates.map(candidate => rewritePath(candidate, opts.healthPath!));
+    inference.healthCandidateSource = "observed";
+    inference.portEvidence = `${inference.portEvidence}; health path set by --health-path flag`;
+  }
   const plan = buildPlan(inference, opts.provider);
+  const trust: AttestationTrust = await resolveTrust({ ciOidc: opts.ciOidc });
   const env = buildExecutionEnv({ PORT: String(inference.port), ...opts.environment });
   const runsSourceComposeApplication =
     opts.provider === "docker" &&
@@ -263,6 +287,7 @@ export async function up(repoPath: string, opts: UpOptions): Promise<UpOutcome> 
       failureClass,
       failureEvidence: failureEvidence.slice(-2000),
       explanation,
+      trust,
     });
     writeAttestation(inference.repoPath, attestation);
     return { inference, plan: refusalPlan, writtenFiles: [], attestation, refusal };
@@ -392,7 +417,7 @@ export async function up(repoPath: string, opts: UpOptions): Promise<UpOutcome> 
     observedHealthCandidates: string[] = [],
   ): UpOutcome => {
     const preciseExplanation = explanationWithMissingEnv(failureClass, evidence, explanation);
-    const att = buildAttestation({ repo: inference.repoPath, plan, observed, startedAt, booted: false, healthVerified: false, healthObservation: null, healthEvidence, observedHealthCandidates, failureClass, failureEvidence: evidence.slice(-2000), explanation: preciseExplanation });
+    const att = buildAttestation({ repo: inference.repoPath, plan, observed, startedAt, booted: false, healthVerified: false, healthObservation: null, healthEvidence, observedHealthCandidates, failureClass, failureEvidence: evidence.slice(-2000), explanation: preciseExplanation, trust });
     writeAttestation(inference.repoPath, att);
     return { inference, plan, writtenFiles, attestation: att, refusal: null };
   };
@@ -523,7 +548,7 @@ export async function up(repoPath: string, opts: UpOptions): Promise<UpOutcome> 
           : `observed HTTP ${health.evidence.statusCode} at ${health.evidence.requestedUrl} after ${health.elapsedMs}ms (${health.attempts} attempts)`;
         observed.push(step("health", "health", undefined, ht, null, true, healthStep));
         await app.stop();
-        const att = buildAttestation({ repo: inference.repoPath, plan, observed, startedAt, booted: true, healthVerified: true, healthObservation: healthObservationSummary(health.evidence), healthEvidence: health.evidence, observedHealthCandidates: health.discoveredCandidates, failureClass: null, failureEvidence: null, explanation: `Verified: ${health.evidence.requestedUrl} responded ${healthStatusLabel(health.evidence)}. This attestation records what was observed, not a guarantee the app is fully functional.` });
+        const att = buildAttestation({ repo: inference.repoPath, plan, observed, startedAt, booted: true, healthVerified: true, healthObservation: healthObservationSummary(health.evidence), healthEvidence: health.evidence, observedHealthCandidates: health.discoveredCandidates, failureClass: null, failureEvidence: null, explanation: `Verified: ${health.evidence.requestedUrl} responded ${healthStatusLabel(health.evidence)}. This attestation records what was observed, not a guarantee the app is fully functional.`, trust });
         writeAttestation(inference.repoPath, att);
         return { inference, plan, writtenFiles, attestation: att, refusal: null };
       }
@@ -559,6 +584,7 @@ export async function up(repoPath: string, opts: UpOptions): Promise<UpOutcome> 
         failureClass: healthClass,
         failureEvidence: `${healthFailureMessage}\n${evidence}`.slice(-2000),
         explanation: preciseHealthExplanation,
+        trust,
       });
       writeAttestation(inference.repoPath, att);
       return { inference, plan, writtenFiles, attestation: att, refusal: null };
@@ -587,6 +613,7 @@ export async function up(repoPath: string, opts: UpOptions): Promise<UpOutcome> 
           failureClass: null,
           failureEvidence: null,
           explanation: `Verified: repository Compose started and ${health.evidence.requestedUrl} responded ${healthStatusLabel(health.evidence)}. This proves the observed web boot, not every service or feature.`,
+          trust,
         });
         writeAttestation(inference.repoPath, att);
         return { inference, plan, writtenFiles, attestation: att, refusal: null };

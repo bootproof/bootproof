@@ -49,6 +49,7 @@ import {
   prismaRepairCommand,
   repairProgressed,
   registeredRemediationsFor,
+  executeAiSuggestedRepair,
 } from "../dist/repair.js";
 import {
   ACTION_MUTATION_SCOPES,
@@ -69,6 +70,7 @@ import {
   resolveAiProvider,
   validateAiRepairSuggestion,
 } from "../dist/ai-repair.js";
+import { exportSbom } from "../dist/sbom.js";
 import { diffRefs, validateDiffResult } from "../dist/diff.js";
 
 const FIX = path.resolve("fixtures");
@@ -2255,6 +2257,68 @@ test("AI repair suggestion schema rejects extra fields and mismatched action pay
   assert.equal(action.requiresApproval, true);
 });
 
+test("AI repair receipt captures aiEvidence (prompt context + suggestion) for audit", async () => {
+  const secret = "AKIA-very-secret-key";
+  const attestation = failedAiAttestation(`API_SECRET=${secret} caused a crash in /Users/alice/repo`);
+  const requested = await requestAiRepairSuggestion(attestation, {
+    env: { OPENAI_API_KEY: "test-key" },
+    fetchImpl: async () => new Response(JSON.stringify({
+      output_text: JSON.stringify(aiSuggestion({
+        suggested_action_type: "instruction",
+        suggested_command: null,
+        suggested_patch: null,
+        explanation_for_user: "Check the env and restart.",
+      })),
+    }), { status: 200, headers: { "content-type": "application/json" } }),
+  });
+  // Use the instruction path — it records "not applied" without executing anything.
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), "bp-ai-evidence-"));
+  try {
+    const result = await executeAiSuggestedRepair(tmpRepo, attestation, requested.action, {
+      provider: "local",
+      unsafeLocal: false,
+      timeoutMs: 5000,
+      actionApproved: false,
+      aiRepair: requested,
+    });
+    const receipt = JSON.parse(fs.readFileSync(path.join(tmpRepo, result.receiptPath), "utf8"));
+    assert.equal(receipt.source, "ai_suggested");
+    assert.ok(receipt.aiEvidence, "receipt must contain aiEvidence for AI-suggested repairs");
+    assert.equal(receipt.aiEvidence.provider, "openai");
+    assert.equal(receipt.aiEvidence.model, "gpt-4.1");
+    assert.equal(receipt.aiEvidence.context.schema, "bootproof/ai-repair-context/v1");
+    assert.equal(receipt.aiEvidence.suggestion.schema, "bootproof/ai-repair-suggestion/v1");
+    // The context must be redacted — no raw secret, no home path.
+    assert.equal(JSON.stringify(receipt.aiEvidence.context).includes(secret), false, "aiEvidence context must not contain raw secrets");
+    assert.equal(JSON.stringify(receipt.aiEvidence.context).includes("/Users/alice"), false, "aiEvidence context must not contain home paths");
+    // The signature must still verify.
+    assert.ok(receipt.signature, "receipt must be signed");
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+  }
+});
+
+test("deterministic repair receipt omits aiEvidence", async () => {
+  // Deterministic repairs have no AI involvement, so aiEvidence must be absent.
+  const attestation = failedAiAttestation("missing_env_var failure");
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), "bp-det-"));
+  try {
+    fs.writeFileSync(path.join(tmpRepo, "package.json"), '{"name":"test"}');
+    const { repairRepo } = await import("../dist/repair.js");
+    const result = await repairRepo(tmpRepo, {
+      provider: "local",
+      unsafeLocal: false,
+      timeoutMs: 5000,
+    });
+    if (result.receiptPath && fs.existsSync(result.receiptPath)) {
+      const receipt = JSON.parse(fs.readFileSync(result.receiptPath, "utf8"));
+      assert.equal(receipt.aiEvidence, undefined, "deterministic receipts must not contain aiEvidence");
+    }
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+  }
+});
+
 test("repair registry exposes only deterministic v0.3 remediations", () => {
   assert.deepEqual(registeredRemediationsFor("service_port_allocated"), [{
     id: "remap-conflicting-service-port",
@@ -3128,4 +3192,66 @@ test("ported: docker bind path normalization (windows + wsl2 literals)", async (
 test("ported: postgres auth taxonomy from cal.com lessons", () => {
   assert.equal(classifyFailure("SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string").class, "postgres_auth_env_missing");
   assert.equal(classifyFailure("FATAL: password authentication failed for user calendso").class, "postgres_auth_env_missing");
+});
+
+test("SBOM: export-sbom produces valid CycloneDX from package-lock.json", () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), "bp-sbom-"));
+  try {
+    fs.writeFileSync(path.join(tmpRepo, "package.json"), JSON.stringify({
+      name: "test-app",
+      version: "1.0.0",
+    }));
+    fs.writeFileSync(path.join(tmpRepo, "package-lock.json"), JSON.stringify({
+      name: "test-app",
+      version: "1.0.0",
+      lockfileVersion: 3,
+      packages: {
+        "": { name: "test-app", version: "1.0.0" },
+        "node_modules/express": { version: "4.18.2" },
+        "node_modules/lodash": { version: "4.17.21" },
+        "node_modules/express/node_modules/debug": { version: "2.6.9" }, // nested — should be skipped
+      },
+    }));
+    const result = exportSbom(tmpRepo, "cyclonedx-json");
+    assert.equal(result.schema, "bootproof/sbom-result/v1");
+    assert.equal(result.format, "cyclonedx-json");
+    assert.equal(result.componentCount, 2, "should find 2 top-level deps (nested skipped)");
+    const names = result.components.map(c => c.name).sort();
+    assert.deepEqual(names, ["express", "lodash"]);
+    const bom = JSON.parse(fs.readFileSync(result.path, "utf8"));
+    assert.equal(bom.bomFormat, "CycloneDX");
+    assert.equal(bom.specVersion, "1.5");
+    assert.equal(bom.metadata.component.type, "application");
+    assert.equal(bom.metadata.component.name, "test-app");
+    assert.equal(bom.components.length, 2);
+    assert.ok(bom.components.every(c => c.purl.startsWith("pkg:npm/")));
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+  }
+});
+
+test("SBOM: export-sbom fails closed without package-lock.json", () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), "bp-sbom-nolock-"));
+  try {
+    fs.writeFileSync(path.join(tmpRepo, "package.json"), '{"name":"no-lock"}');
+    assert.throws(
+      () => exportSbom(tmpRepo),
+      /No package-lock.json found/,
+    );
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+  }
+});
+
+test("SBOM: export-sbom rejects unsupported formats", () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), "bp-sbom-fmt-"));
+  try {
+    fs.writeFileSync(path.join(tmpRepo, "package-lock.json"), '{"name":"x","packages":{}}');
+    assert.throws(
+      () => exportSbom(tmpRepo, "spdx-json"),
+      /Unsupported SBOM format: spdx-json/,
+    );
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+  }
 });

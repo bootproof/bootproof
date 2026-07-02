@@ -54,6 +54,7 @@ import {
   resolveAiProvider,
   type RequestedAiRepair,
 } from "./ai-repair.js";
+import { exportSbom, type SbomFormat } from "./sbom.js";
 import { diffRefs, type DiffResult } from "./diff.js";
 import type { Attestation } from "./types.js";
 
@@ -65,7 +66,7 @@ const bad = (s: string) => console.log(`${RED}\u2717 ${s}${RESET}`);
 const disableColor = () => { GREEN = ""; YELLOW = ""; RED = ""; DIM = ""; BOLD = ""; RESET = ""; };
 const portableRelative = (from: string, to: string) => path.relative(from, to).replace(/\\/g, "/");
 
-const COMMANDS = ["up", "verify-url", "plan-agent", "explain-run", "fix", "apply-repair", "diff", "analyze", "plan", "verify", "explain", "attest", "registry", "help", "version", "--help", "-h", "--version"];
+const COMMANDS = ["up", "verify-url", "plan-agent", "explain-run", "fix", "apply-repair", "diff", "analyze", "plan", "verify", "explain", "attest", "registry", "export-sbom", "help", "version", "--help", "-h", "--version"];
 const SUPPORTED_FLAGS: Record<string, ReadonlySet<string>> = {
   diff: new Set(["base", "head", "json", "ci"]),
   analyze: new Set(["workspace", "json", "ci"]),
@@ -74,12 +75,12 @@ const SUPPORTED_FLAGS: Record<string, ReadonlySet<string>> = {
   "explain-run": new Set(["ci"]),
   "apply-repair": new Set(["receipt", "dry-run", "json", "ci"]),
   fix: new Set(["provider", "unsafe-local", "port", "timeout", "dry-run", "json", "ci", "ai"]),
-  up: new Set(["provider", "unsafe-local", "install", "workspace", "port", "timeout", "dry-run", "json", "ci", "command", "external-health", "receipt"]),
+  up: new Set(["provider", "unsafe-local", "install", "workspace", "port", "timeout", "dry-run", "json", "ci", "command", "external-health", "receipt", "health-path", "ci-oidc"]),
   "verify-url": new Set(["timeout", "json", "ci"]),
   verify: new Set(["ci"]),
   attest: new Set(["ci"]),
   registry: new Set(["mode", "federated", "ci"]),
-  explain: new Set(["ci"]),
+  "export-sbom": new Set(["format", "json", "ci"]),
 };
 void normalizeDockerBindPath; void detectHostPlatform; // exported surface, used by docker provider work in progress
 
@@ -120,6 +121,7 @@ Usage:
   bootproof registry export <path> --federated              explicitly write a public-candidate receipt
   bootproof attest export <path>                            compatibility alias for local registry export
   bootproof attest check <path>                             verify a registry entry signature
+  bootproof export-sbom <path> [--format cyclonedx-json]    export a CycloneDX SBOM from package-lock.json
   bootproof version
 
 Options for up:
@@ -132,11 +134,13 @@ Options for up:
   --command <command>       override the inferred application start command
   --external-health <url>   verify an externally managed service; do not start the app
   --port <n>                override inferred port
+  --health-path <path>      override inferred health endpoint path (e.g. /health, /healthz)
   --timeout <ms>            health verification timeout (default 60000)
   --dry-run                 show what would happen; executes nothing, writes nothing
   --json                    one bootproof/result/v1 JSON object on stdout
   --ci                      no prompts, colours, or interactive UI; fail closed
   --receipt                 write a self-verifying Living Receipt HTML to .bootproof/living-receipt.html
+  --ci-oidc                 fetch GitHub Actions OIDC token and sign at ci_oidc_signed trust level (requires permissions: id-token: write)
 
 Options for fix:
   --provider docker|local   execution provider (default docker; docker only works for Compose apps)
@@ -797,6 +801,7 @@ async function main() {
           port,
           remoteSource: remoteSource ?? undefined,
           actionApproved,
+          aiRepair: requested,
         });
         const result = remote ? rebaseRemoteRepairPaths(repairResult, target) : repairResult;
         printRepairResult(result);
@@ -843,6 +848,7 @@ async function main() {
     const timeoutMs = Number(flags.timeout ?? 60_000);
     const port = flags.port === undefined ? undefined : Number(flags.port);
     const command = flags.command;
+    const healthPath = typeof flags["health-path"] === "string" ? flags["health-path"] : undefined;
     const optionError =
       provider !== "docker" && provider !== "local"
         ? `invalid --provider value: ${String(provider)} (expected docker or local)`
@@ -852,6 +858,8 @@ async function main() {
             ? `invalid --port value: ${String(flags.port)} (expected an integer from 1 to 65535)`
             : command !== undefined && (typeof command !== "string" || command.trim().length === 0)
               ? "--command requires a non-empty command string"
+            : healthPath !== undefined && (typeof healthPath !== "string" || !healthPath.startsWith("/"))
+              ? "--health-path requires a path starting with / (e.g. /health)"
             : null;
     if (optionError) {
       if (flags.json) console.log(JSON.stringify(machineFailure(optionError)));
@@ -869,6 +877,8 @@ async function main() {
       install: Boolean(flags.install),
       port,
       command: typeof command === "string" ? command : undefined,
+      healthPath,
+      ciOidc: Boolean(flags["ci-oidc"]),
     };
     const outcome = await up(target, opts);
     const verified = outcome.attestation?.result.booted === true && outcome.attestation.result.healthVerified === true;
@@ -1028,6 +1038,33 @@ async function main() {
     }
     bad(`unknown attest subcommand: ${sub ?? "(none)"} — use export or check`);
     process.exitCode = 1;
+    return;
+  }
+
+  if (cmd === "export-sbom") {
+    const format = (flags.format as SbomFormat | undefined) ?? "cyclonedx-json";
+    if (format !== "cyclonedx-json") {
+      if (flags.json) console.log(JSON.stringify(machineFailure(`Unsupported SBOM format: ${format}. Currently supported: cyclonedx-json.`)));
+      else bad(`Unsupported SBOM format: ${format}. Currently supported: cyclonedx-json.`);
+      process.exitCode = 1;
+      return;
+    }
+    try {
+      const result = exportSbom(target, format);
+      if (flags.json) {
+        console.log(JSON.stringify(result));
+        return;
+      }
+      ok(`SBOM exported: ${portableRelative(process.cwd(), result.path)}`);
+      console.log(`  format: ${result.format}`);
+      console.log(`  components: ${result.componentCount}`);
+      console.log(`${DIM}CycloneDX 1.5 JSON. Read from package-lock.json. No transitive resolution beyond the lockfile.${RESET}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (flags.json) console.log(JSON.stringify(machineFailure(msg)));
+      else bad(msg);
+      process.exitCode = 1;
+    }
     return;
   }
 

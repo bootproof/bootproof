@@ -54,6 +54,7 @@
     "failure": { "$ref": "#/$defs/failure" },
     "repair": { "$ref": "#/$defs/legacyRepair" },
     "verification": { "$ref": "#/$defs/verification" },
+    "aiEvidence": { "$ref": "#/$defs/aiEvidence" },
     "startedAt": { "type": "string", "format": "date-time" },
     "finishedAt": { "type": "string", "format": "date-time" },
     "signer": {
@@ -196,6 +197,24 @@
       "properties": {
         "publicKey": { "type": "string" },
         "algorithm": { "const": "ed25519" }
+      }
+    },
+    "aiEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "context", "suggestion"],
+      "description": "AI prompt and response evidence for auditability. Present only when source === 'ai_suggested'. The context is redacted before storage; the suggestion is the validated structured response.",
+      "properties": {
+        "provider": { "enum": ["openai", "anthropic"] },
+        "model": { "type": "string", "minLength": 1 },
+        "context": {
+          "type": "object",
+          "description": "The redacted bootproof/ai-repair-context/v1 object sent to the AI provider."
+        },
+        "suggestion": {
+          "type": "object",
+          "description": "The validated bootproof/ai-repair-suggestion/v1 object the AI returned."
+        }
       }
     }
   }
