@@ -1,69 +1,184 @@
 # BootProof
 
-## See BootProof in action
+[![CI](https://github.com/bootproof/bootproof/actions/workflows/ci.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/ci.yml)
+[![Receipt Gate](https://github.com/bootproof/bootproof/actions/workflows/receipt-gate.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/receipt-gate.yml)
 
-### 1. The “wow” moment: a serious stack, verified locally
-
-BootProof is designed for the moment every developer knows: you find a serious open-source repo, clone it, and then spend the afternoon guessing how to make it run.
-
-This demo shows BootProof treating a Supabase-style stack as something that must be **proved**, not assumed. It infers the stack, identifies the boot path, starts the services, verifies localhost health, and writes a signed attestation.
-
-<p align="center">
-  <img src="assets/bootproof-supabase-demo.gif" alt="BootProof demo verifying a Supabase-style stack" width="900">
-</p>
-
-**What this proves:** BootProof does not just print a happy message. It only gives the green check after observed health evidence exists.
+BootProof answers one question: **did this repository actually boot?** Not "did a command run?" Not "did Docker say containers are up?" Not "did an AI agent say it worked?" BootProof inspects a repo, builds an evidence-based run plan, executes only what it can justify, observes real health, and writes a signed attestation for success or failure. No proof, no green check.
 
 ---
 
-### 2. The agent moment: AI can suggest, BootProof proves
+## The Living Receipt: proof that travels
 
-AI coding agents can suggest commands, but they should not be trusted to declare success. This demo shows the BootProof agent loop on a GitLab-style repo: AI suggests a repair, BootProof requires approval, runs one bounded step, reruns verification, and writes a receipt showing what changed.
-
-<p align="center">
-  <img src="assets/bootproof-gitlab-agent-demo.gif" alt="BootProof demo showing AI repair suggestions gated by proof" width="900">
-</p>
-
-**What this proves:** AI can help move the repo forward, but BootProof refuses to fake a green check. No proof, no green check.
-
----
-
-### 3. The Living Receipt: proof that travels
-
-Attestations are JSON. That is the right shape for machines and CI, but it is the wrong shape for a human you are trying to convince. The Living Receipt is the same evidence, rendered as a **single self-contained HTML file** you can email, attach, or link from a README badge.
-
-The two receipts in the demo below are **not mock data**. They are real captures from a real `bootproof up` run against two real local repositories — one that boots to a real HTTP 200, and one that installs clean and then segfaults at runtime. The signature, the boot logs, and the observed HTTP response are all real captured evidence, signed with ed25519 and embedded in the file.
-
-Open it anywhere — no install, no network, no account — and four things happen in your browser, with zero external calls:
-
-1. **It re-verifies its own ed25519 signature.** The signed message, the signature, and the public key are all embedded inline. Native WebCrypto Ed25519 is used in Chrome 137+, Firefox, and Safari; on older browsers (~20% of users) the receipt automatically falls back to a pure-JS `@noble/curves` verifier bundled inline. The receipt never fails to verify silently.
-2. **It replays the actual boot** — the inferred plan, the real commands that ran, the real captured log timeline, the real observed HTTP response (or the real classified failure) — streaming in an embedded terminal.
-3. **If a single byte of the signed message is altered, the verdict collapses with the signature.** The boot stamp flips to `VERDICT UNVERIFIED — SIGNATURE INVALID`, because no claim inside a tampered receipt can be trusted. That is the whole point of the product: a green check that survives tampering would defeat the entire premise.
-4. **The trust ladder is documented in the artifact itself.** This receipt is signed at the `local_developer_signed` level — it proves integrity-since-signing, not that the signer's machine was honest. The documented upgrade path is `local_developer_signed` → `ci_oidc_signed` → `neutral_runner_signed` → `transparency_logged`. The same file format and the same wow experience survive every step up the ladder; only the signer's identity climbs.
-
-Try it now — download the Living Receipt and open it in your browser:
+The Living Receipt is the same evidence as the JSON attestation, rendered as a single self-contained HTML file that re-verifies its own ed25519 signature in your browser with zero network calls. Download it, open it locally, then click **Tamper with signature** to watch the verdict collapse:
 
 ```bash
 curl -sL https://github.com/bootproof/bootproof/raw/main/assets/living-receipt.html -o proof.bootproof.html
-open proof.bootproof.html   # macOS
-# or: xdg-open proof.bootproof.html   # Linux
-# or: double-click the file in Finder/Explorer
+open proof.bootproof.html   # macOS; xdg-open on Linux; double-click on Windows
 ```
 
-Then click **Tamper with signature** to watch the verdict collapse. The self-verification only works when the file is opened locally (`file://`) — GitHub shows the raw source inline, which is why you need to download it first.
+The receipt is signed at the `local_developer_signed` trust level — it proves integrity-since-signing, not that the signer's machine was honest. The trust ladder (`local_developer_signed` → `ci_oidc_signed` → `neutral_runner_signed` → `transparency_logged`) is documented in the artifact itself. Generate your own with `npx bootproof up <repo> --receipt`.
 
 <p align="center">
   <a href="https://github.com/bootproof/bootproof/raw/main/assets/living-receipt.html"><img src="https://img.shields.io/badge/download%20the%20Living%20Receipt-%E2%9C%93%20real%20capture%20%C2%B7%20self--verifying-0E9D5B?style=flat-square&labelColor=16181D" alt="Download the Living Receipt"></a>
   <sub>(right-click → Save Link As… → save as <code>.html</code> → double-click to open)</sub>
 </p>
 
-**Reproduce the capture.** The engine that produced these real receipts ships in this repo — both the standalone MVP (`scripts/bootproof_up.mjs`) and the integrated TypeScript CLI:
+---
+
+## Quick start: up and verify
 
 ```bash
-# Using the TypeScript CLI (the published npm package) — emits the receipt natively
-npx bootproof up <any-repo> --provider local --unsafe-local --install --receipt
+cd /path/to/repository
+npx bootproof up .
+```
 
-# The receipt is written to .bootproof/living-receipt.html
+BootProof inspects the repo and either proves it booted or explains why it refused. For explicit local execution with dependency installation:
+
+```bash
+npx bootproof up . --provider local --unsafe-local --install
+```
+
+Verify a signed attestation:
+
+```bash
+npx bootproof verify .bootproof/attestation.json
+npx bootproof verify . --require-known-signer   # CI gating: reject unknown signers
+```
+
+---
+
+## Receipt Gate: CI and AI agents
+
+Receipt Gate is a GitHub Action that blocks PR merges unless BootProof observes a real boot. No proof, no merge.
+
+```yaml
+- uses: bootproof/receipt-gate@v1
+  with:
+    path: .
+    require-health: 'true'   # default: observed HTTP health required
+```
+
+Gate your AI agent directly — in `.claude/settings.json`, make the agent hand you a receipt every time it claims done:
+
+```json
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "npx -y bootproof@0.4.0 up . --provider local --unsafe-local --json --timeout 60000 > .bootproof-last.json; node -e \"const r=require('./.bootproof-last.json'); console.log(r.booted && r.healthVerified ? '✅ RECEIPT: work boots and answers' : '❌ NO RECEIPT: ' + (r.failureClass||'boot not observed'));\""
+      }]
+    }]
+  }
+}
+```
+
+See [`bootproof/receipt-gate`](https://github.com/bootproof/receipt-gate) for the full Action and the agent-hook snippet.
+
+---
+
+## Full command surface
+
+### Boot a selected workspace
+
+```bash
+npx bootproof up . --workspace apps/studio
+```
+
+### Run in CI/machine mode
+
+```bash
+npx bootproof up . --ci --json
+```
+
+### Verify an existing service
+
+```bash
+npx bootproof verify-url http://localhost:8001/api/v1/health
+```
+
+### Attach external health to the current repo
+
+```bash
+npx bootproof up . --external-health http://localhost:8001/api/v1/health
+```
+
+### Explain an attestation
+
+```bash
+npx bootproof explain .bootproof/attestation.json
+```
+
+### Static infrastructure diff
+
+```bash
+npx bootproof diff --base main --head HEAD
+npx bootproof diff --base main --head HEAD --json
+```
+
+### Export a CycloneDX SBOM
+
+```bash
+npx bootproof export-sbom .
+npx bootproof export-sbom . --json
+```
+
+Reads `package-lock.json` and writes `.bootproof/sbom.cdx.json` in CycloneDX 1.5 JSON format. Each top-level dependency in the lockfile becomes a `library` component with a `pkg:npm/{name}@{version}` purl. The application itself is recorded as the `metadata.component`. No transitive resolution is performed beyond what the lockfile already records, and no code is executed to produce the SBOM. Repositories without a `package-lock.json` are refused. The only supported `--format` value is `cyclonedx-json`.
+
+### Deterministic repair
+
+```bash
+npx bootproof fix .
+```
+
+### Optional BYOK AI repair suggestion
+
+```bash
+OPENAI_API_KEY=... npx bootproof fix . --ai
+```
+
+or:
+
+```bash
+ANTHROPIC_API_KEY=... BOOTPROOF_AI_PROVIDER=anthropic npx bootproof fix . --ai
+```
+
+`bootproof up` remains zero-AI.
+
+### Key rotation
+
+```bash
+bootproof rotate-keys                    # generate new key, back up old
+bootproof rotate-keys --repo . --resign  # also re-sign the latest attestation
+```
+
+---
+
+## Demos
+
+### Supabase-style stack, verified locally
+
+BootProof treats a Supabase-style stack as something that must be proved, not assumed. It infers the stack, identifies the boot path, starts the services, verifies localhost health, and writes a signed attestation.
+
+<p align="center">
+  <img src="assets/bootproof-supabase-demo.gif" alt="BootProof demo verifying a Supabase-style stack" width="900">
+</p>
+
+### GitLab-style repo, AI repair gated by proof
+
+AI coding agents can suggest commands, but they should not be trusted to declare success. This demo shows the BootProof agent loop: AI suggests a repair, BootProof requires approval, runs one bounded step, reruns verification, and writes a receipt showing what changed.
+
+<p align="center">
+  <img src="assets/bootproof-gitlab-agent-demo.gif" alt="BootProof demo showing AI repair suggestions gated by proof" width="900">
+</p>
+
+### Living Receipt reproduction
+
+The two receipts in the Living Receipt download are real captures from a real `bootproof up` run — one that boots to HTTP 200, and one that segfaults at runtime. Reproduce them:
+
+```bash
+# Using the TypeScript CLI — emits the receipt natively
+npx bootproof up <any-repo> --provider local --unsafe-local --install --receipt
 
 # Or use the standalone MVP engine (for development/testing)
 node scripts/bootproof_up.mjs fixtures/real-booting-app --label "real-booting-app"
@@ -78,39 +193,7 @@ node scripts/build_living_receipt.mjs \
 node scripts/verify_living_receipt.mjs
 ```
 
-**`--receipt` is now a native flag.** `npx bootproof up <repo> --receipt` runs the real TypeScript CLI, boots the repo for real, observes health for real, signs the attestation with ed25519, and emits the self-verifying Living Receipt HTML — all in one command. The receipt contains the real captured evidence from that run, not mock data.
-
-**What this proves:** the receipt is not a description of a product — it *is* the product, and it runs the moment you open it. It works offline, survives being forwarded, and cannot be forged without breaking the signature. A platform-issued green check dies the moment you leave the platform. A Living Receipt travels.
-
-**The PLG loop is wired in.** Every receipt now carries:
-- A first-time visitor banner ("You're holding a Living Receipt — forward it, it verifies itself on the next machine")
-- A "Copy markdown badge" button that generates a `[![bootproof](...)](./proof.bootproof.html)` snippet for this specific receipt's verdict
-- A "Download this file" button — the file IS the product, one tap to share it
-- A page-level CTA: `npx bootproof up <any-repo-url>`
-
-Every receipt is a self-proving advertisement. Every badge in the wild is a link. Every click is a developer asking "what is this?" — and the answer is the product. See [`assets/bootproof-badge-template.md`](assets/bootproof-badge-template.md) for copy-paste badge snippets, and [`docs/LAUNCH_PLAYBOOK.md`](docs/LAUNCH_PLAYBOOK.md) for the "First 1,000 Receipts" distribution sequence.
-
-
-
-[![CI](https://github.com/bootproof/bootproof/actions/workflows/ci.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/ci.yml)
-[![Receipt Gate](https://github.com/bootproof/bootproof/actions/workflows/receipt-gate.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/receipt-gate.yml)
-
-> **The honest run button for GitHub repos. Proof, not vibes.**
-
-BootProof answers one question:
-
-> **Did this repository actually boot?**
-
-Not “did a command run?”  
-Not “did Docker say containers are up?”  
-Not “did an AI agent say it worked?”  
-Not “did the README look plausible?”
-
-BootProof inspects a repo, builds an evidence-based run plan, executes only what it can justify, observes real health, and writes a signed attestation for success or failure.
-
-```text
-No proof, no green check.
-```
+The Living Receipt carries PLG hooks: a first-time visitor banner, a "Copy markdown badge" button, a "Download this file" button, and a page-level CTA. See [`assets/bootproof-badge-template.md`](assets/bootproof-badge-template.md) for badge snippets and [`docs/LAUNCH_PLAYBOOK.md`](docs/LAUNCH_PLAYBOOK.md) for the distribution sequence.
 
 ---
 
@@ -192,44 +275,6 @@ Evidence:
 ```
 
 Predictable failure is a feature.
-
----
-
-## Quick start
-
-Run BootProof against a local repo:
-
-```bash
-cd /path/to/repository
-npx bootproof up .
-```
-
-BootProof will inspect the repo and either prove it booted or explain why it refused.
-
-For CI or agent workflows:
-
-```bash
-npx bootproof up . --ci --json
-```
-
-For explicit local execution:
-
-```bash
-npx bootproof up . --provider local --unsafe-local
-```
-
-Run dependency installation only when you intend to:
-
-```bash
-npx bootproof up . --provider local --unsafe-local --install
-```
-
-Explain or verify an attestation:
-
-```bash
-npx bootproof explain .bootproof/attestation.json
-npx bootproof verify .bootproof/attestation.json
-```
 
 ---
 
@@ -439,62 +484,7 @@ That distinction matters.
 
 ---
 
-## Main commands
-
-### Boot a repo
-
-```bash
-npx bootproof up .
-```
-
-### Boot a selected workspace
-
-```bash
-npx bootproof up . --workspace apps/studio
-```
-
-### Run in CI/machine mode
-
-```bash
-npx bootproof up . --ci --json
-```
-
-### Explicit local host execution
-
-```bash
-npx bootproof up . --provider local --unsafe-local
-```
-
-### Allow dependency installation
-
-```bash
-npx bootproof up . --provider local --unsafe-local --install
-```
-
-### Verify an existing service
-
-```bash
-npx bootproof verify-url http://localhost:8001/api/v1/health
-```
-
-### Attach external health to the current repo
-
-```bash
-npx bootproof up . --external-health http://localhost:8001/api/v1/health
-```
-
-### Explain an attestation
-
-```bash
-npx bootproof explain .bootproof/attestation.json
-```
-
-### Verify an attestation
-
-```bash
-npx bootproof verify .bootproof/attestation.json
-npx bootproof verify . --require-known-signer
-```
+## Verifying attestations: signer tiers
 
 Signature verification reports one of three local signer tiers:
 
@@ -513,42 +503,6 @@ Use `--require-known-signer` for CI gating. When verification targets a reposito
 BootProof also compares the attested commit with the repository's current `HEAD`; `--strict`
 fails on either an unknown signer or a commit mismatch. A valid signature proves the artifact
 was not altered after signing. It does not, by itself, prove who produced it.
-
-### Static infrastructure diff
-
-```bash
-npx bootproof diff --base main --head HEAD
-npx bootproof diff --base main --head HEAD --json
-```
-
-### Export a CycloneDX SBOM
-
-```bash
-npx bootproof export-sbom .
-npx bootproof export-sbom . --json
-```
-
-Reads `package-lock.json` and writes `.bootproof/sbom.cdx.json` in CycloneDX 1.5 JSON format. Each top-level dependency in the lockfile becomes a `library` component with a `pkg:npm/{name}@{version}` purl. The application itself is recorded as the `metadata.component`. No transitive resolution is performed beyond what the lockfile already records, and no code is executed to produce the SBOM. Repositories without a `package-lock.json` are refused. The only supported `--format` value is `cyclonedx-json`.
-
-### Deterministic repair
-
-```bash
-npx bootproof fix .
-```
-
-### Optional BYOK AI repair suggestion
-
-```bash
-OPENAI_API_KEY=... npx bootproof fix . --ai
-```
-
-or:
-
-```bash
-ANTHROPIC_API_KEY=... BOOTPROOF_AI_PROVIDER=anthropic npx bootproof fix . --ai
-```
-
-`bootproof up` remains zero-AI.
 
 ---
 
