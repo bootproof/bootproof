@@ -1014,6 +1014,57 @@ test("signature trust: forged claims re-signed by a fresh key remain unknown unt
   assert.match(invalid.out, /signature INVALID/);
 });
 
+test("signature trust: full trust-flow integration (foreign → unknown → pin → known → second foreign still fails)", () => {
+  const { home, env } = isolatedHome();
+  const repo = freshCopy("early-refusal-attestation");
+  const generated = run(["up", repo, "--provider", "local", "--unsafe-local", "--ci"], true, env);
+  assert.equal(generated.code, 1, generated.out);
+  const original = JSON.parse(fs.readFileSync(path.join(repo, ".bootproof", "attestation.json"), "utf8"));
+
+  // (a) Attestation signed by a foreign key
+  const foreignA = freshEd25519Signer();
+  const foreignAtt = resignAttestation(original, foreignA);
+  const foreignPath = path.join(repo, ".bootproof", "foreign-a.json");
+  fs.writeFileSync(foreignPath, JSON.stringify(foreignAtt, null, 2) + "\n");
+
+  // (b) verify reports unknown-foreign, exit 0
+  const unknown = run(["verify", foreignPath, "--ci"], false, env);
+  assert.equal(unknown.code, 0, unknown.out);
+  assert.match(unknown.out, /signature intact, signer: UNKNOWN — integrity only, not a trusted signer/);
+
+  // (c) verify --require-known-signer exits 1
+  const required = run(["verify", foreignPath, "--require-known-signer", "--ci"], true, env);
+  assert.equal(required.code, 1, required.out);
+  assert.match(required.out, /signer: UNKNOWN/);
+
+  // (d) verify --trust-signer pins the signer
+  const pin = run(["verify", foreignPath, "--trust-signer", "--ci"], false, env);
+  assert.equal(pin.code, 0, pin.out);
+  const fingerprintA = signerFingerprint(foreignA.publicKeyPem);
+  assert.match(pin.out, new RegExp(`Trusting signer: ${fingerprintA}`));
+  assert.match(pin.out, new RegExp(`signature intact, signer: known \\(${fingerprintA}\\)`));
+  const store = JSON.parse(fs.readFileSync(path.join(home, ".bootproof", "known_signers.json"), "utf8"));
+  assert.ok(store.signers[fingerprintA], "foreign A must be pinned in known_signers.json");
+
+  // (e) verify --require-known-signer now exits 0
+  const known = run(["verify", foreignPath, "--require-known-signer", "--ci"], false, env);
+  assert.equal(known.code, 0, known.out);
+  assert.match(known.out, new RegExp(`signer: known \\(${fingerprintA}\\)`));
+
+  // (f) a second, different foreign signer still exits 1
+  const foreignB = freshEd25519Signer();
+  const foreignBAtt = resignAttestation(original, foreignB);
+  const foreignBPath = path.join(repo, ".bootproof", "foreign-b.json");
+  fs.writeFileSync(foreignBPath, JSON.stringify(foreignBAtt, null, 2) + "\n");
+  const secondForeign = run(["verify", foreignBPath, "--require-known-signer", "--ci"], true, env);
+  assert.equal(secondForeign.code, 1, secondForeign.out);
+  assert.match(secondForeign.out, /signer: UNKNOWN/);
+  const fingerprintB = signerFingerprint(foreignB.publicKeyPem);
+  assert.notEqual(fingerprintA, fingerprintB, "the two foreign signers must have different fingerprints");
+  const storeAfter = JSON.parse(fs.readFileSync(path.join(home, ".bootproof", "known_signers.json"), "utf8"));
+  assert.ok(!storeAfter.signers[fingerprintB], "foreign B must NOT be pinned");
+});
+
 test("signature trust: directory verification warns and fails strict mode for a cross-repo replay", () => {
   const { env } = isolatedHome();
   const sourceRepo = freshCopy("early-refusal-attestation");
