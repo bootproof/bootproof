@@ -924,6 +924,14 @@ bootproof rotate-keys --repo . --resign  # also re-sign the latest attestation
 
 Old keys are archived to `~/.bootproof/archived-keys/` so existing attestations remain verifiable.
 
+### What the local key does and does not protect
+
+The local signing key lives at `~/.bootproof/signer.json` (0600 permissions; the `~/.bootproof/` directory is 0700). Pinned foreign signers are stored in `~/.bootproof/known_signers.json` (also 0600). Archived keys from rotation are stored in `~/.bootproof/archived-keys/` (0600).
+
+The key protects **integrity**: a valid ed25519 signature proves the attestation was not altered after signing. It does not protect **authorship**: anyone who obtains this key file can sign attestations that will verify as "this machine." If the key is compromised, `bootproof rotate-keys` generates a new keypair and archives the old one — but existing attestations signed by the compromised key will still verify as intact (they carry the old public key inline). Rotation prevents future compromise; it does not revoke past signatures.
+
+`local_developer_signed` has **no revocation mechanism**. There is no key revocation server, no CRL, no OCSP responder. The trust ladder (`local_developer_signed` → `ci_oidc_signed` → `neutral_runner_signed` → `transparency_logged`) is the mitigation, not a hidden feature: higher rungs bind signatures to external identities (OIDC, neutral runners, transparency logs) that are harder to forge than a local key file. A verifier who requires `--require-known-signer` rejects any signer not explicitly pinned, which limits the blast radius of a compromised key to the set of pinned keys.
+
 ---
 
 ## CI and registry

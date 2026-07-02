@@ -438,3 +438,33 @@ test("rotate-keys: --resign re-signs the latest attestation with the new key", (
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }
 });
+
+test("key files are written with 0600 permissions and directories with 0700", () => {
+  const homeBackup = process.env.HOME;
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "bp-perms-"));
+  try {
+    process.env.HOME = tmpHome;
+    buildAttestation({
+      repo: tmpHome,
+      plan: minimalPlan(),
+      observed: minimalObserved(),
+      startedAt: new Date().toISOString(),
+      booted: true,
+      healthVerified: true,
+      healthObservation: "HTTP 200",
+      failureClass: null,
+      failureEvidence: null,
+      explanation: "test",
+    });
+    const signerPath = path.join(tmpHome, ".bootproof", "signer.json");
+    assert.ok(fs.existsSync(signerPath), "signer.json must exist");
+    const signerMode = fs.statSync(signerPath).mode & 0o777;
+    assert.equal(signerMode, 0o600, `signer.json must be 0600, got ${signerMode.toString(8)}`);
+    const bootproofDir = path.join(tmpHome, ".bootproof");
+    const dirMode = fs.statSync(bootproofDir).mode & 0o777;
+    assert.equal(dirMode, 0o700, `~/.bootproof must be 0700, got ${dirMode.toString(8)}`);
+  } finally {
+    process.env.HOME = homeBackup;
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
