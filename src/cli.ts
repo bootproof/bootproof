@@ -65,7 +65,6 @@ import {
   type RequestedAiRepair,
 } from "./ai-repair.js";
 import { exportSbom, type SbomFormat } from "./sbom.js";
-import { rotateSigner } from "./proof.js";
 import { diffRefs, type DiffResult } from "./diff.js";
 import type { Attestation } from "./types.js";
 
