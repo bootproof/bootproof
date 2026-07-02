@@ -37,6 +37,22 @@ function classifyHealthFailure(evidence: string): "health_http_error" | "health_
   return "health_check_timeout";
 }
 
+/**
+ * Augment the app_exited_early explanation with the last ~10 lines of captured
+ * process output (stdout and stderr are combined at capture time). The evidence
+ * is already stored in the attestation; this only surfaces it in the explanation
+ * field. Redaction is applied by buildAttestation before persistence.
+ */
+function appExitedEarlyExplanation(classExplanation: string, processEvidence: ProcessEvidence): string {
+  const tailLines = processEvidence.evidenceTail
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .slice(-10);
+  if (!tailLines.length) return classExplanation;
+  return `${classExplanation}\n\nLast process output (stdout and stderr combined):\n${tailLines.join("\n")}`;
+}
+
 function healthStatusLabel(evidence: HealthEvidence): string {
   const status = `HTTP ${evidence.statusCode}${evidence.statusText ? ` ${evidence.statusText}` : ""}`;
   return evidence.redirectLocation ? `${status} → ${evidence.redirectLocation}` : status;
@@ -586,7 +602,10 @@ export async function up(repoPath: string, opts: UpOptions): Promise<UpOutcome> 
         observed.push(step(planned.id, "start-app", planned.command, t, exit.code, false, observation, processEvidence));
         const c = classifyFailure(evidence);
         await app.stop();
-        return fail(c.class === "unknown_failure" ? "app_exited_early" : c.class, evidence, c.explanation, health.evidence, health.discoveredCandidates);
+        const finalExplanation = c.class === "unknown_failure"
+          ? appExitedEarlyExplanation(c.explanation, processEvidence)
+          : c.explanation;
+        return fail(c.class === "unknown_failure" ? "app_exited_early" : c.class, evidence, finalExplanation, health.evidence, health.discoveredCandidates);
       }
       observed.push(step(planned.id, "start-app", planned.command, t, null, true, "app process started and was supervised"));
       const ht = new Date().toISOString();

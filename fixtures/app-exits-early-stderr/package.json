@@ -1,0 +1,10 @@
+{
+  "name": "app-exits-early-stderr",
+  "version": "1.0.0",
+  "description": "A minimal app that exits 1 with distinctive stderr before opening a port. BootProof must surface the stderr in the app_exited_early explanation.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "license": "MIT"
+}

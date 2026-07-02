@@ -294,12 +294,18 @@ export function diagnoseFailure(
         whyRefused: "BootProof cannot trust an application boot when its declared dependency installation failed.",
         safeNextStep: "Inspect the preserved install evidence, fix the underlying package or environment problem, then rerun BootProof.",
       };
-    case "app_exited_early":
+    case "app_exited_early": {
+      const processOutput = explanation.includes("Last process output")
+        ? explanation.slice(explanation.indexOf("Last process output"))
+        : "";
       return {
-        whatHappened: "The application process exited before any health response was observed.",
+        whatHappened: processOutput
+          ? `The application process exited before any health response was observed.\n${processOutput}`
+          : "The application process exited before any health response was observed.",
         whyRefused: "No live application health signal was available to verify.",
         safeNextStep: "Inspect the preserved process output, fix the startup error, then rerun BootProof.",
       };
+    }
     default:
       return {
         whatHappened: explanation,

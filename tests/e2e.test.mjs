@@ -684,6 +684,29 @@ test("honesty: an instantly exited app stops health polling without claiming sup
   assert.doesNotMatch(start.observation, /supervised/i);
 });
 
+test("app_exited_early surfaces captured stderr in the explanation", () => {
+  const repo = freshCopy("app-exits-early-stderr");
+  const { out, code } = run(["up", repo, "--provider", "local", "--unsafe-local", "--timeout", "10000", "--ci"], true);
+  assert.equal(code, 1);
+  assert.match(out, /NOT VERIFIED — app_exited_early/);
+  // The distinctive stderr marker must appear in the human explanation
+  assert.match(out, /BOOTPROOF_DISTINCTIVE_STDERR_MARKER:cannot start, config missing/);
+  assert.match(out, /second line of diagnostic output/);
+
+  // The --json explanation field must also contain the stderr
+  const json = run(["up", repo, "--provider", "local", "--unsafe-local", "--timeout", "10000", "--ci", "--json"], true);
+  const result = JSON.parse(json.out);
+  assert.equal(result.failureClass, "app_exited_early");
+  assert.match(result.explanation, /BOOTPROOF_DISTINCTIVE_STDERR_MARKER:cannot start, config missing/);
+  assert.match(result.explanation, /second line of diagnostic output/);
+
+  // The signed attestation must also contain the surfaced stderr (post-redaction)
+  const att = JSON.parse(fs.readFileSync(path.join(repo, ".bootproof", "attestation.json"), "utf8"));
+  assert.equal(att.result.failureClass, "app_exited_early");
+  assert.match(att.result.explanation, /BOOTPROOF_DISTINCTIVE_STDERR_MARKER/);
+  assert.match(att.result.explanation, /Last process output/);
+});
+
 test("honesty: a pre-existing unhealthy responder is still treated as occupied", async () => {
   await withLocalhostHttpServer((_request, response) => {
     response.statusCode = 500;
