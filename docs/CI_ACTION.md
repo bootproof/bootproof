@@ -129,13 +129,11 @@ Current attestations still say:
 local_developer_signed
 ```
 
-They are signed evidence generated on a CI runner, but they are not yet `ci_oidc_signed`. Workload-identity-backed signing remains future work.
+They are signed evidence generated on a CI runner. By default they are `local_developer_signed` (signed with the runner's local ed25519 key). To upgrade to `ci_oidc_signed`, set the `ci-oidc` input to `true` and grant `permissions: id-token: write` on the workflow — BootProof will fetch the runner's OIDC token and embed the claims in the attestation trust block.
 
 BootProof does not silently push commits or upload evidence. The workflow owner chooses whether to retain artifacts or commit `.bootproof/`.
 
-The action records GitHub workflow context as unsigned provenance metadata. It
-does not request an OIDC token, emit `ci_oidc_signed`, or claim SLSA
-provenance.
+The action records GitHub workflow context as unsigned provenance metadata. When `ci-oidc: true` is set, it also requests an OIDC token and emits `ci_oidc_signed` attestations with embedded workload-identity claims.
 
 The action-owned machine artifacts use strict schemas:
 

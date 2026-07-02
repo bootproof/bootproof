@@ -54,6 +54,7 @@ export function normalizeInputs(raw = {}) {
     cloudUpload: parseBoolean(raw.cloudUpload, "bootproof-cloud-upload", false),
     cloudToken: String(raw.cloudToken || ""),
     agentPlanSummary: parseBoolean(raw.agentPlanSummary, "agent-plan-summary", false),
+    ciOidc: parseBoolean(raw.ciOidc, "ci-oidc", false),
     githubToken: String(raw.githubToken || ""),
   };
   if (inputs.cloudUpload) {
@@ -85,6 +86,7 @@ function rawInputs(env) {
     cloudUpload: env.BOOTPROOF_ACTION_CLOUD_UPLOAD,
     cloudToken: env.BOOTPROOF_ACTION_CLOUD_TOKEN,
     agentPlanSummary: env.BOOTPROOF_ACTION_AGENT_PLAN_SUMMARY,
+    ciOidc: env.BOOTPROOF_ACTION_CI_OIDC,
     githubToken: env.BOOTPROOF_ACTION_GITHUB_TOKEN,
   };
 }
@@ -107,6 +109,7 @@ export function buildUpInvocation(inputs, prefix = npxBootproofPrefix()) {
     "--ci",
     "--json",
     ...(inputs.install ? ["--install"] : []),
+    ...(inputs.ciOidc ? ["--ci-oidc"] : []),
   ];
 }
 
@@ -473,7 +476,7 @@ function federatedReceipts(repo) {
     .map(name => path.join(directory, name));
 }
 
-function provenance(env) {
+function provenance(env, inputs = { ciOidc: false }) {
   return {
     schema: "bootproof/ci-context/v1",
     repository: env.GITHUB_REPOSITORY || "",
@@ -487,7 +490,7 @@ function provenance(env) {
     job: env.GITHUB_JOB || "",
     serverUrl: env.GITHUB_SERVER_URL || "",
     githubActions: env.GITHUB_ACTIONS === "true",
-    oidcSigned: false,
+    oidcSigned: inputs.ciOidc,
   };
 }
 
@@ -635,7 +638,7 @@ export async function executeAction({
     "federated-receipt.json",
   );
   const provenancePath = path.join(artifactDirectory, "ci-context.json");
-  fs.writeFileSync(provenancePath, `${JSON.stringify(provenance(env), null, 2)}\n`);
+  fs.writeFileSync(provenancePath, `${JSON.stringify(provenance(env, inputs), null, 2)}\n`);
 
   const external = attestation?.verificationMode === "external-health";
   const verified = Boolean(

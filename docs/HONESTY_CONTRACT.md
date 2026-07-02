@@ -112,10 +112,13 @@ automatically on first use.
 attested commit with live Git `HEAD`, and `--strict` fails if they differ.
 
 Local attestations are useful evidence. CI/OIDC attestations are stronger supply-chain proof.
-Keyless/OIDC authorship binding is intentionally deferred to the CI/Action work. BootProof does
-not pretend local laptop proof is enterprise CI proof.
+BootProof does not pretend local laptop proof is enterprise CI proof.
 
-`ci_oidc_signed` is reserved for future workload-identity-backed signing. BootProof does not emit it today.
+`ci_oidc_signed` is emitted when `--ci-oidc` is passed to `bootproof up` inside a GitHub Actions
+workflow with `permissions: id-token: write`. The composite Action exposes this as the `ci-oidc`
+input (default: `false`). When enabled, BootProof fetches the runner's OIDC token and embeds the
+claims (iss, sub, repository, run_id, workflow, etc.) in the attestation trust block. The
+ed25519 signature still provides integrity; the OIDC evidence provides CI provenance.
 
 ## Network And Sharing
 

@@ -333,6 +333,15 @@ test("GitHub Action CI invocation is non-interactive and preserves the zero-AI b
   }
 });
 
+test("ci-oidc input adds --ci-oidc to the bootproof up invocation", () => {
+  const inputs = normalizeInputs({ ciOidc: "true" });
+  const invocation = buildUpInvocation(inputs);
+  assert.ok(invocation.includes("--ci-oidc"), "invocation must include --ci-oidc when ciOidc is true");
+  // Default (ciOidc false) must NOT include the flag
+  const defaultInvocation = buildUpInvocation(normalizeInputs());
+  assert.equal(defaultInvocation.includes("--ci-oidc"), false, "invocation must not include --ci-oidc by default");
+});
+
 test("GitHub Action execution environment disables colour and prompts", () => {
   const env = buildExecutionEnvironment({
     PATH: "/test/bin",

@@ -59,6 +59,10 @@ inputs:
     description: Summarise an existing local agent plan without executing any action.
     required: false
     default: "false"
+  ci-oidc:
+    description: Request a GitHub Actions OIDC token and sign the attestation at ci_oidc_signed trust level. Requires permissions: id-token: write on the workflow.
+    required: false
+    default: "false"
   github-token:
     description: GitHub token used only for the optional pull request comment.
     required: false
@@ -105,6 +109,7 @@ runs:
         BOOTPROOF_ACTION_CLOUD_UPLOAD: ${{ inputs.bootproof-cloud-upload }}
         BOOTPROOF_ACTION_CLOUD_TOKEN: ${{ inputs.bootproof-cloud-token }}
         BOOTPROOF_ACTION_AGENT_PLAN_SUMMARY: ${{ inputs.agent-plan-summary }}
+        BOOTPROOF_ACTION_CI_OIDC: ${{ inputs.ci-oidc }}
         BOOTPROOF_ACTION_GITHUB_TOKEN: ${{ inputs.github-token }}
       run: node "$GITHUB_ACTION_PATH/scripts/github-action.mjs"
 
