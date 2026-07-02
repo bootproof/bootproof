@@ -1,0 +1,91 @@
+# Self-gate: BootProof must prove itself before merge.
+# This is keystroke 3 of the launch playbook — the product wears its own badge.
+#
+# Adds a "Receipt Gate" status check to every PR. Fails closed unless bootproof
+# observes its own freshly-built CLI booting a known-good fixture app.
+# We invoke the CLI directly (rather than consuming bootproof/receipt-gate@v1)
+# so the receipt's evidence trail points at THIS PR's code, not at whatever
+# is on npm at the moment. The receipt-gate composite action exists for
+# external consumers; for dogfooding, going through the CLI is more honest.
+name: receipt-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  prove-it-runs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build CLI from source
+        run: |
+          npm ci
+          npm run build
+
+      - name: Require proof of boot
+        id: gate
+        shell: bash
+        run: |
+          set -uo pipefail
+          RESULT="$(mktemp)"
+          echo "Running bootproof up against fixtures/real-booting-app"
+          node dist/cli.js up fixtures/real-booting-app \
+            --provider local --unsafe-local --install \
+            --json --timeout 60000 > "$RESULT" 2> bootproof-stderr.log
+          BP_EXIT=$?
+
+          if ! node -e "JSON.parse(require('fs').readFileSync('$RESULT','utf8'))" 2>/dev/null; then
+            echo "::error::No parseable result (exit $BP_EXIT). Failing closed."
+            tail -20 bootproof-stderr.log || true
+            exit 1
+          fi
+
+          BOOTED=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$RESULT','utf8')).booted === true ? 'true' : 'false')")
+          HEALTH=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$RESULT','utf8')).healthVerified === true ? 'true' : 'false')")
+          FAILCLASS=$(node -e "const r=JSON.parse(require('fs').readFileSync('$RESULT','utf8')); console.log(r.failureClass ?? 'none')")
+          ATTESTATION=$(node -e "const r=JSON.parse(require('fs').readFileSync('$RESULT','utf8')); console.log(r.attestationPath ?? '')")
+
+          {
+            echo "booted=$BOOTED"
+            echo "health-verified=$HEALTH"
+            echo "failure-class=$FAILCLASS"
+            [ -n "$ATTESTATION" ] && echo "attestation-path=$ATTESTATION"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Receipt Gate (self-gate)"
+            echo ""
+            echo "| Check | Result |"
+            echo "|---|---|"
+            echo "| Booted | $([ "$BOOTED" = "true" ] && echo '✅ yes' || echo '❌ no') |"
+            echo "| Health verified | $([ "$HEALTH" = "true" ] && echo '✅ verified' || echo '⚠️ process only') |"
+            echo "| Failure class | \`$FAILCLASS\` |"
+            echo "| Attestation | \`$ATTESTATION\` (uploaded below) |"
+            echo ""
+            echo "BootProof wears its own badge. No proof, no green check — even on itself."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$BOOTED" != "true" ]; then
+            echo "::error::Self-gate FAIL — no observed boot signal (class: $FAILCLASS)"
+            exit 1
+          fi
+
+      - name: Upload signed receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-receipt
+          path: fixtures/real-booting-app/.bootproof/attestation.json
+          if-no-files-found: ignore

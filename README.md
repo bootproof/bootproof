@@ -93,6 +93,7 @@ Every receipt is a self-proving advertisement. Every badge in the wild is a link
 
 
 [![CI](https://github.com/bootproof/bootproof/actions/workflows/ci.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/ci.yml)
+[![Receipt Gate](https://github.com/bootproof/bootproof/actions/workflows/receipt-gate.yml/badge.svg)](https://github.com/bootproof/bootproof/actions/workflows/receipt-gate.yml)
 
 > **The honest run button for GitHub repos. Proof, not vibes.**
 
