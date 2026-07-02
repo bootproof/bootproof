@@ -77,8 +77,10 @@ jobs:
             echo "BootProof wears its own badge. No proof, no green check — even on itself."
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$BOOTED" != "true" ]; then
-            echo "::error::Self-gate FAIL — no observed boot signal (class: $FAILCLASS)"
+          # Require both boot AND health — matches Receipt Gate's require-health=true default.
+          # The fixture (fixtures/real-booting-app) serves HTTP 200 at /, so health=true passes.
+          if [ "$BOOTED" != "true" ] || [ "$HEALTH" != "true" ]; then
+            echo "::error::Self-gate FAIL — booted=$BOOTED health=$HEALTH (class: $FAILCLASS)"
             exit 1
           fi
 
