@@ -9,6 +9,7 @@ Tracking receipt-first outreach per the Distribution Kit. One row per send.
 | 2026-06-27 | Show HN post | None defined (skipped) | Not verified (likely auto-killed) | Misrecorded as rejection |
 | 2026-07-02 | First Marketplace attempt (description >125 chars) | URL returns 200 | Not verified before claiming success | Misrecorded as success |
 | 2026-07-03 | Marketplace listing live | URL `github.com/marketplace/actions/receipt-gate` flips from 404 to 200 | Verified from outside, logged-out, by third party — HTTP 200, title "Receipt Gate · Actions · GitHub Marketplace", owner `bootproof`, categories `continuous-integration` + `security` | Recorded honestly ✅ |
+| 2026-07-03 | npm publish with provenance (0.4.1) | `npm view bootproof version` returns `0.4.1` AND `npm view bootproof@0.4.1 dist.attestations` returns a non-null URL | `npm view bootproof version` → `0.4.1`; `npm view bootproof@0.4.1 dist.attestations` → `https://registry.npmjs.org/-/npm/v1/attestations/bootproof@0.4.1` (Sigstore-backed provenance present); release workflow run `28658700043` conclusion=success | Recorded honestly ✅ |
 
 This last row is the template for every remaining go-to-market step: define the observable before attempting, verify externally after, record honestly regardless of outcome.
 
