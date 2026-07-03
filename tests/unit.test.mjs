@@ -2069,7 +2069,7 @@ test("repair receipt safety base serializes with lifecycle fields", () => {
   const receipt = buildRepairReceiptBase({
     repairId: "set-safe-rails-env-instruction",
     createdAt: "2026-06-12T10:00:00.000Z",
-    bootproofVersion: "0.4.0",
+    bootproofVersion: "0.4.1",
     beforeFailureClass: "missing_env_var",
     beforeEvidenceHash: "a".repeat(64),
     proposedAction: action,

@@ -16,7 +16,7 @@ import type {
 import { buildExecutionEnv } from "./exec.js";
 import { redactJsonValue } from "./redact.js";
 
-export const TOOL_ID = "bootproof@0.4.0";
+export const TOOL_ID = "bootproof@0.4.1";
 export type { AttestationTrust } from "./types.js";
 
 export type SignerTrustTier = "invalid" | "self" | "known" | "unknown-foreign";

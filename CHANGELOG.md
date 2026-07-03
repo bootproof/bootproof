@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.1
+
+### Observed capabilities
+
+- npm keywords replaced with search-relevant terms: `attestation`, `runtime-verification`, `ai-agents`, `claude-code`, `ci`, `signed`, `receipt`, `proof`, `health-check`, `supply-chain`, `provenance`, `verification`. Previous keywords (`devtools`, `onboarding`, `docker`, `run`, `attestation`, `reproducibility`) were generic and unwinnable on npm search.
+- `action.yml` description updated to name its sibling: "Advisory: run BootProof in CI, report honest PR verdicts, retain evidence. For merge enforcement, use Receipt Gate." Receipt Gate's description updated inversely: "Hard gate: no merge without observed health. For advisory reporting without blocking, use the BootProof action." The two adjacent Marketplace listings now state their differentiation.
+- Release workflow added (`.github/workflows/release.yml`) with `npm publish --provenance` and `id-token: write`. When triggered by a tag push (or manual dispatch with `dry-run: false`), the published npm package carries Sigstore-backed build provenance. The tool that signs runtime proofs is itself published with signed build provenance.
+
+### Fixes
+
+- No code fixes; this is a packaging and distribution release.
+
 ## 0.4.0
 
 ### Observed capabilities

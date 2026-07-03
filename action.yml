@@ -1,5 +1,5 @@
 name: BootProof
-description: Run BootProof in CI, retain evidence, and report an honest pull request verdict.
+description: 'Advisory: run BootProof in CI, report honest PR verdicts, retain evidence. For merge enforcement, use Receipt Gate.'
 author: BootProof
 
 inputs:
