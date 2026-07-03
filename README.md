@@ -5,6 +5,10 @@
 
 BootProof answers one question: **did this repository actually boot?** Not "did a command run?" Not "did Docker say containers are up?" Not "did an AI agent say it worked?" BootProof inspects a repo, builds an evidence-based run plan, executes only what it can justify, observes real health, and writes a signed attestation for success or failure. No proof, no green check.
 
+<p align="center">
+  <img src="assets/bootproof-supabase-demo.gif" alt="BootProof verifying a Supabase-style stack: infers the boot path, starts services, observes HTTP health, writes a signed attestation" width="900">
+</p>
+
 ---
 
 ## The Living Receipt: proof that travels
