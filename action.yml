@@ -60,7 +60,7 @@ inputs:
     required: false
     default: "false"
   ci-oidc:
-    description: Request a GitHub Actions OIDC token and sign the attestation at ci_oidc_signed trust level. Requires permissions: id-token: write on the workflow.
+    description: 'Request a GitHub Actions OIDC token and sign the attestation at ci_oidc_signed trust level. Requires permissions: id-token: write on the workflow.'
     required: false
     default: "false"
   github-token:
