@@ -19,6 +19,7 @@ This last row is the template for every remaining go-to-market step: define the 
 | Date | Target | Template | Repo tested | Result (clean boot / honest refusal) | Reply | Outcome |
 |------|--------|----------|-------------|--------------------------------------|-------|---------|
 | 2026-07-03 | Airbyte (security@airbyte.io) | B | airbytehq/airbyte | Honest refusal: orchestration_not_supported (needs abctl/kind/helm) | sent | awaiting |
+| 2026-07-03 | Daniel Stenberg (daniel@haxx.se) | A | curl/curl | Honest refusal: not_an_application (C library, no HTTP health endpoint) | sent | awaiting |
 
 ## Status codes
 
