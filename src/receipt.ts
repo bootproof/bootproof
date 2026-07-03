@@ -14,7 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import type { Attestation, ObservedStep } from "./types.js";
+import type { Attestation, ObservedStep, Inference } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // The @noble/curves Ed25519 fallback bundle, inlined.
@@ -92,15 +92,48 @@ interface ReceiptRecord {
   failureClass: string | null;
 }
 
-function attestationToRecord(att: Attestation): ReceiptRecord {
+function attestationToRecord(att: Attestation, inference?: Inference | null): ReceiptRecord {
   // Build a timeline from the observed steps
   const log: Array<{ t: number; level: string; line: string }> = [];
   const startTime = att.startedAt ? new Date(att.startedAt).getTime() : 0;
 
   log.push({ t: 0, level: "info", line: `bootproof: inspecting repository\u2026` });
 
-  // Inference summary
-  if (att.plan.steps.length > 0) {
+  // Inference summary — surface what BootProof detected, even for refusals
+  if (inference) {
+    // Stack detection
+    if (inference.stack.length > 0) {
+      log.push({ t: 0, level: "info", line: `  detected stack: ${inference.stack.join(", ")}` });
+    }
+    // Markers
+    const allMarkers = [
+      ...inference.backendMarkers.map(m => `backend:${m}`),
+      ...inference.frontendMarkers.map(m => `frontend:${m}`),
+      ...inference.serviceMarkers.map(m => `service:${m}`),
+    ];
+    if (allMarkers.length > 0) {
+      log.push({ t: 0, level: "info", line: `  markers: ${allMarkers.join(", ")}` });
+    }
+    // Package manager
+    log.push({ t: 0, level: "info", line: `  package manager: ${inference.packageManager} (${inference.packageManagerEvidence})` });
+    // Application command
+    if (inference.appCommand) {
+      log.push({ t: 0, level: "info", line: `  inferred start: ${inference.appCommand} (${inference.appCommandSource})` });
+    } else {
+      log.push({ t: 0, level: "info", line: `  no runnable command found (${inference.appCommandSource})` });
+    }
+    // Health candidates
+    if (inference.healthCandidates.length > 0) {
+      log.push({ t: 0, level: "info", line: `  health candidate: ${inference.healthCandidates[0]}` });
+    }
+    // Compose
+    if (inference.repoComposeFile) {
+      log.push({ t: 0, level: "info", line: `  compose file: ${inference.repoComposeFile}` });
+    }
+    // Confidence
+    log.push({ t: 0, level: "info", line: `  confidence: ${inference.confidence}% (heuristic score, not success prediction)` });
+  } else if (att.plan.steps.length > 0) {
+    // Fallback: use plan steps if no inference available
     const installStep = att.plan.steps.find(s => s.kind === "install");
     const startStep = att.plan.steps.find(s => s.kind === "start-app");
     if (installStep) log.push({ t: 0, level: "info", line: `  inferred install: ${installStep.command || installStep.description}` });
@@ -176,13 +209,30 @@ function attestationToRecord(att: Attestation): ReceiptRecord {
           : "process_exit",
       windowMs: att.result.failureClass.includes("timeout") ? 12000 : undefined,
     };
-    log.push({ t: log.length > 0 ? log[log.length - 1].t : 0, level: "fail", line: `NOT VERIFIED \u2014 ${att.result.failureClass}` });
+    const refusalT = log.length > 0 ? log[log.length - 1].t + 200 : 200;
+    log.push({ t: refusalT, level: "fail", line: `NOT VERIFIED \u2014 ${att.result.failureClass}` });
+    // Surface the explanation — this is the "why" that makes a refusal receipt valuable
+    if (att.result.explanation) {
+      for (const line of att.result.explanation.split("\n").filter(l => l.trim())) {
+        log.push({ t: refusalT + 100, level: "info", line: `  reason: ${line}` });
+      }
+    }
+    // Surface the failure evidence if different from explanation
+    if (att.result.failureEvidence && att.result.failureEvidence !== att.result.explanation) {
+      const evidenceLines = att.result.failureEvidence.split("\n").filter(l => l.trim()).slice(-5);
+      for (const line of evidenceLines) {
+        log.push({ t: refusalT + 200, level: "info", line: `  evidence: ${line}` });
+      }
+    }
+    // Honesty contract statement
+    log.push({ t: refusalT + 300, level: "info", line: `  BootProof declined to pretend a bare command is enough.` });
+    log.push({ t: refusalT + 400, level: "info", line: `  This refusal is signed and independently verifiable.` });
   } else {
     observed = { kind: "none" };
   }
 
-  // Inference
-  const inference = att.plan.steps.length > 0 ? {
+  // Inference summary for the receipt header
+  const inferenceSummary = att.plan.steps.length > 0 ? {
     language: att.environment.os.includes("win") ? "detected" : "detected",
     packageManager: "detected",
     startCommand: att.plan.steps.find(s => s.kind === "start-app")?.command || "detected",
@@ -210,7 +260,7 @@ function attestationToRecord(att: Attestation): ReceiptRecord {
       branch: "main",
       label: repoLabel,
     },
-    inference,
+    inference: inferenceSummary,
     plan,
     log,
     observed,
@@ -393,8 +443,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 //
 // We re-sign using the attestation's signer key (loaded by proof.ts).
 // ---------------------------------------------------------------------------
-export function emitLivingReceipt(att: Attestation, outPath: string): string {
-  const record = attestationToRecord(att);
+export function emitLivingReceipt(att: Attestation, outPath: string, inference?: Inference | null): string {
+  const record = attestationToRecord(att, inference);
   const message = JSON.stringify(record, null, 2);
 
   // Re-sign the record with a fresh keypair dedicated to the receipt.

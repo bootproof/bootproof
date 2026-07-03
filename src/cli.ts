@@ -940,7 +940,7 @@ async function main() {
     const verified = outcome.attestation?.result.booted === true && outcome.attestation.result.healthVerified === true;
     if (flags.receipt && outcome.attestation) {
       const receiptPath = path.join(target, ".bootproof", "living-receipt.html");
-      emitLivingReceipt(outcome.attestation, receiptPath);
+      emitLivingReceipt(outcome.attestation, receiptPath, outcome.inference);
       if (!flags.json) console.log(`${GREEN}\u2713${RESET} Living Receipt: ${portableRelative(process.cwd(), receiptPath)}`);
     }
     if (flags.json) {
